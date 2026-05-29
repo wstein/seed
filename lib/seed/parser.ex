@@ -23,12 +23,14 @@ defmodule Seed.Parser do
   alias Seed.TerminalNode
   alias Seed.Token
   alias Seed.TokenStream
+  alias Seed.Vocabulary
 
   @eof Token.eof()
 
   @type t :: %__MODULE__{
           atn: ATN.t(),
           input: TokenStream.t(),
+          vocabulary: Vocabulary.t(),
           state: integer(),
           frames: [ParserRuleContext.t()],
           precedence_stack: [integer()],
@@ -38,6 +40,7 @@ defmodule Seed.Parser do
   @enforce_keys [:atn, :input]
   defstruct atn: nil,
             input: nil,
+            vocabulary: nil,
             state: -1,
             frames: [],
             precedence_stack: [],
@@ -51,9 +54,16 @@ defmodule Seed.Parser do
     def message(%__MODULE__{diagnostic: diagnostic}), do: diagnostic.message
   end
 
-  @doc "Builds a parser over `atn` reading `input`."
-  @spec new(ATN.t(), TokenStream.t()) :: t()
-  def new(%ATN{} = atn, %TokenStream{} = input), do: %__MODULE__{atn: atn, input: input}
+  @doc """
+  Builds a parser over `atn` reading `input`.
+
+  `vocabulary` supplies token names for diagnostics; it defaults to an empty
+  vocabulary, in which case messages fall back to numeric token types.
+  """
+  @spec new(ATN.t(), TokenStream.t(), Vocabulary.t()) :: t()
+  def new(%ATN{} = atn, %TokenStream{} = input, vocabulary \\ Vocabulary.empty()) do
+    %__MODULE__{atn: atn, input: input, vocabulary: vocabulary}
+  end
 
   @doc "The current rule context (the top frame)."
   @spec current_context(t()) :: ParserRuleContext.t()
@@ -116,7 +126,7 @@ defmodule Seed.Parser do
         diagnostic:
           Diagnostic.error(
             :token_mismatch,
-            "mismatched input #{describe(token)}, expected token type #{token_type}",
+            "mismatched input #{describe(token)}, expected #{Vocabulary.display_name(parser.vocabulary, token_type)}",
             line: token.line,
             column: token.column
           )
@@ -142,6 +152,7 @@ defmodule Seed.Parser do
     end
   end
 
+  defp describe(%Token{type: @eof}), do: "<EOF>"
   defp describe(%Token{text: nil, type: type}), do: "<#{type}>"
   defp describe(%Token{text: text}), do: inspect(text)
 

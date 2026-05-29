@@ -28,7 +28,10 @@ build on (recovery will accumulate several diagnostics rather than one).
 Build diagnostics at the raise site, where the offending token or input
 position is in hand (`Seed.Diagnostic.error/3` takes `:line`/`:column`).
 Rescue the carrying exception only at the public entry points; lower-level
-streaming primitives such as `Seed.Lexer.next_token/1` keep raising.
+streaming primitives such as `Seed.Lexer.next_token/1` keep raising. When a
+grammar is supplied, the parser carries its `Seed.Vocabulary`, so mismatch
+messages name the expected token (`expected ID`) instead of its numeric
+type; without a vocabulary they fall back to the number.
 
 ## Links
 

@@ -37,8 +37,12 @@ defmodule Seed.ParserInterpreterTest do
     {:ok, tokens} =
       lexer_grammar.atn |> Lexer.new(CharStream.new("hello")) |> TokenStream.from_lexer()
 
-    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, severity: :error}]} =
+    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, message: message}]} =
              ParserInterpreter.parse(parser_grammar, tokens, 0)
+
+    # The expected token is rendered by its vocabulary name, not its number.
+    assert message =~ "ID"
+    assert message =~ "<EOF>"
   end
 
   test "parser predictions are memoized in the DFA cache" do

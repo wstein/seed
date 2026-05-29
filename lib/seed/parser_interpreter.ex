@@ -21,27 +21,36 @@ defmodule Seed.ParserInterpreter do
   alias Seed.ParserATNSimulator
   alias Seed.ParserRuleContext
   alias Seed.TokenStream
+  alias Seed.Vocabulary
 
   @doc """
   Parses `token_stream` starting at `start_rule_index`.
 
-  Accepts a `Seed.Grammar` (using its ATN) or a bare `Seed.ATN`, and returns
-  `{:ok, tree}` or `{:error, [Seed.Diagnostic.t()]}`.
+  Accepts a `Seed.Grammar` (using its ATN and vocabulary) or a bare
+  `Seed.ATN`, and returns `{:ok, tree}` or `{:error, [Seed.Diagnostic.t()]}`.
   """
   @spec parse(Grammar.t() | ATN.t(), TokenStream.t(), non_neg_integer()) ::
           {:ok, ParserRuleContext.t()} | {:error, [Diagnostic.t()]}
-  def parse(%Grammar{atn: atn}, %TokenStream{} = token_stream, start_rule_index) do
-    parse(atn, token_stream, start_rule_index)
+  def parse(
+        %Grammar{atn: atn, vocabulary: vocabulary},
+        %TokenStream{} = token_stream,
+        start_rule_index
+      ) do
+    do_parse(atn, token_stream, start_rule_index, vocabulary)
   end
 
   def parse(%ATN{} = atn, %TokenStream{} = token_stream, start_rule_index) do
-    {:ok, build_tree(atn, token_stream, start_rule_index)}
+    do_parse(atn, token_stream, start_rule_index, Vocabulary.empty())
+  end
+
+  defp do_parse(atn, token_stream, start_rule_index, vocabulary) do
+    {:ok, build_tree(atn, token_stream, start_rule_index, vocabulary)}
   rescue
     error in Parser.Error -> {:error, [error.diagnostic]}
   end
 
-  defp build_tree(atn, token_stream, start_rule_index) do
-    parser = Parser.new(atn, token_stream)
+  defp build_tree(atn, token_stream, start_rule_index, vocabulary) do
+    parser = Parser.new(atn, token_stream, vocabulary)
     start_number = Enum.at(atn.rule_to_start_state, start_rule_index)
     start_state = Map.fetch!(atn.states, start_number)
     push_states = precedence_decision_states(atn)

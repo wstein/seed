@@ -44,7 +44,8 @@ Early development. The implemented and verified foundation is:
   can be lexed and parsed at run time with no code generation.
 - **Diagnostics** — `Seed.Lexer.tokenize/1` and `Seed.ParserInterpreter.parse/3`
   return `{:ok, result} | {:error, [Seed.Diagnostic.t()]}`; a diagnostic
-  carries a machine-readable code, severity, and source position.
+  carries a machine-readable code, severity, and source position, and
+  mismatch messages name the expected token from the grammar's vocabulary.
 
 Full-context (LL) fallback for SLL-ambiguous grammars and the Elixir
 code-generation target are the next milestones — see the architecture docs
