@@ -21,15 +21,18 @@ defmodule Seed.GeneratedTest do
     assert Trees.to_string_tree(tree, Expr.parser_grammar()) =~ "prog"
   end
 
-  test "parse_<rule>/1 parses from a named rule" do
+  test "parse_<rule>/1 parses from a named rule, including a left-recursive one" do
     assert {:ok, tree} = Expr.parse_stat("x = 1 + 2 ;")
     assert Trees.to_string_tree(tree, Expr.parser_grammar()) =~ "stat"
+
+    assert {:ok, expr} = Expr.parse_expr("1 + 2 * 3")
+    assert Trees.to_string_tree(expr, Expr.parser_grammar()) =~ "expr"
   end
 
   test "parse/2 resolves a rule by name (atom or string) or index" do
-    assert {:ok, _} = Expr.parse("x = 1 ;", :stat)
-    assert {:ok, _} = Expr.parse("x = 1 ;", "stat")
-    assert {:ok, _} = Expr.parse("x = 1 ;", 1)
+    assert {:ok, _} = Expr.parse("1 + 2", :expr)
+    assert {:ok, _} = Expr.parse("1 + 2", "expr")
+    assert {:ok, _} = Expr.parse("1 + 2", 2)
   end
 
   test "tokenize/1 lexes with the baked lexer" do

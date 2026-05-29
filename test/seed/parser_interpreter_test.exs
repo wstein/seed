@@ -84,6 +84,21 @@ defmodule Seed.ParserInterpreterTest do
     assert Enum.map(diagnostics, & &1.code) == [:extraneous_input, :extraneous_input]
   end
 
+  test "parses starting directly at a left-recursive rule" do
+    parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
+
+    {:ok, tokens} =
+      lexer.atn |> Lexer.new(CharStream.new("1 + 2 * 3")) |> TokenStream.from_lexer()
+
+    # Rule index 2 is `expr`, a precedence (left-recursive) rule. Starting
+    # there directly still applies the precedence so `*` binds tighter.
+    assert {:ok, tree} = ParserInterpreter.parse(parser, tokens, 2)
+
+    assert Trees.to_string_tree(tree, parser) ==
+             "(expr (expr 1) + (expr (expr 2) * (expr 3)))"
+  end
+
   test "resynchronizes past unrecoverable input to the rule's follow set" do
     parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))

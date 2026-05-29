@@ -59,9 +59,8 @@ Early development. The implemented and verified foundation is:
   check so it cannot loop), and panic-mode resynchronization to a rule's
   follow set when neither applies.
 
-Recognizer base behaviours, a tree walker, and parsing that starts directly
-at a left-recursive rule are the next milestones — see the architecture docs
-for the full roadmap.
+Recognizer base behaviours and a tree walker are the next milestones — see
+the architecture docs for the full roadmap.
 
 ## Design principles
 

@@ -137,7 +137,7 @@ defmodule Seed.ParserATNSimulator do
     reach = cached_reach_set(atn, configs, t, parser)
 
     if ParserATNConfigSet.empty?(reach) do
-      predict_from(configs, input, parser)
+      predict_from(atn, configs, input, parser)
     else
       resolve(atn, reach, input, parser)
     end
@@ -162,11 +162,32 @@ defmodule Seed.ParserATNSimulator do
     end
   end
 
-  defp predict_from(configs, input, parser) do
+  # No alternative can consume the current token. Prefer an alternative that
+  # has already reached the decision's rule-stop state (it accepts here
+  # without consuming) — the lowest such, ANTLR's ambiguity convention. This
+  # is what lets a decision exit correctly under an empty outer context, e.g.
+  # the precedence loop of a left-recursive rule parsed as the start rule,
+  # where there is no caller follow to fall into and the exit alternative
+  # lands directly on rule-stop. With a non-empty context the exit instead
+  # lands on the caller's follow (a non-stop state), so fall back to the
+  # lowest alternative present.
+  defp predict_from(atn, configs, input, parser) do
     case ParserATNConfigSet.configs(configs) do
-      [] -> raise Parser.Error, diagnostics: parser.diagnostics ++ [no_viable_alternative(input)]
-      reach_configs -> PredictionMode.min_alt(reach_configs)
+      [] ->
+        raise Parser.Error, diagnostics: parser.diagnostics ++ [no_viable_alternative(input)]
+
+      reach_configs ->
+        case stop_state_alts(atn, reach_configs) do
+          [] -> PredictionMode.min_alt(reach_configs)
+          alts -> Enum.min(alts)
+        end
     end
+  end
+
+  defp stop_state_alts(atn, configs) do
+    for config <- configs,
+        Map.fetch!(atn.states, config.state).state_type == :rule_stop,
+        do: config.alt
   end
 
   defp no_viable_alternative(input) do

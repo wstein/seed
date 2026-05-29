@@ -44,9 +44,14 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   — the parser prediction data layer.
 * `Seed.ParserATNSimulator` — adaptive LL(*) prediction using the full
   rule-invocation context (so context-sensitive decisions resolve
-  correctly), with the left-recursion precedence filter.
+  correctly), with the left-recursion precedence filter. When no alternative
+  can consume the next token, prediction selects an alternative that has
+  reached the decision's rule-stop state, which lets a decision exit under an
+  empty outer context — the case of parsing directly from a left-recursive
+  rule, where there is no caller follow to fall into.
 * `Seed.Parser` and `Seed.ParserInterpreter` — the ATN-walking tree builder,
-  including left-recursion. Validated against the reference parser's trees.
+  including left-recursion (from a sub-rule or directly as the start rule).
+  Validated against the reference parser's trees.
 * `Seed.DFACache` and `Seed.Application` — a supervised, bounded ETS table
   memoizing the lexer's and parser's ATN decisions
   (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure speedup.
@@ -83,9 +88,6 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * *Prediction-time resync* — recovery for a no-viable-alternative at a
   decision (today a hard parse error), complementing the match-time resync
   above.
-* *Left-recursive start rule* — parsing that begins directly at a precedence
-  (left-recursive) rule; today only non-recursive start rules are supported
-  (a left-recursive rule parses correctly when reached as a sub-rule).
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).
