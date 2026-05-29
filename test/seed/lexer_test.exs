@@ -4,6 +4,8 @@ defmodule Seed.LexerTest do
   alias Seed.ATNDeserializer
   alias Seed.CharStream
   alias Seed.Lexer
+  alias Seed.Token
+  alias Seed.TokenStream
 
   @atn_dir Path.expand("../fixtures/atn", __DIR__)
   @lex_dir Path.expand("../fixtures/lex", __DIR__)
@@ -29,6 +31,16 @@ defmodule Seed.LexerTest do
       |> Enum.take(3)
 
     assert Enum.all?(eofs, &(&1.type == Seed.Token.eof()))
+  end
+
+  test "TokenStream.from_lexer/1 builds a parser-ready stream" do
+    # hello.input is "hello world\nhello abc" -> hello, world, hello, abc, EOF
+    stream = "hello" |> build_lexer() |> TokenStream.from_lexer()
+
+    assert TokenStream.size(stream) == 5
+    assert TokenStream.la(stream, 1) == 1
+    assert TokenStream.lt(stream, 2).text == "world"
+    assert TokenStream.get(stream, TokenStream.size(stream) - 1).type == Token.eof()
   end
 
   defp tokenize(name), do: name |> build_lexer() |> Lexer.tokenize()

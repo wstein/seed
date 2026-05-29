@@ -37,6 +37,16 @@ defmodule Seed.TokenStream do
     %__MODULE__{tokens: buffer, size: tuple_size(buffer), index: 0}
   end
 
+  @doc """
+  Builds a token stream by running `lexer` to completion.
+
+  Tokenizes the lexer's entire input (the resulting list ends with EOF) and
+  buffers it, giving a lexer-to-parser pipeline. Skipped tokens never reach
+  the stream because the lexer drops them while matching.
+  """
+  @spec from_lexer(Seed.Lexer.t()) :: t()
+  def from_lexer(%Seed.Lexer{} = lexer), do: lexer |> Seed.Lexer.tokenize() |> new()
+
   @doc "The current 0-based position in the stream."
   @spec index(t()) :: non_neg_integer()
   def index(%__MODULE__{index: index}), do: index
