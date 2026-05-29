@@ -38,6 +38,22 @@ defmodule Seed.LexerATNSimulator do
 
   @eof Seed.Token.eof()
 
+  # The default lexer predicate evaluator: every `{...}?` is satisfied. It is
+  # a constant, so the DFA cache stays correct; a *custom* evaluator (whose
+  # result may vary with position) bypasses the cache instead.
+  @default_sempred &__MODULE__.default_sempred/2
+
+  @typedoc """
+  Evaluates a lexer semantic predicate `{...}?`, given its rule index and
+  per-rule predicate index. The interpreter cannot run the host code a
+  predicate compiles to, so the caller supplies this.
+  """
+  @type sempred :: (rule_index :: integer(), pred_index :: integer() -> boolean())
+
+  @doc false
+  @spec default_sempred(integer(), integer()) :: true
+  def default_sempred(_rule_index, _pred_index), do: true
+
   @typedoc "The result of matching one token."
   @type result ::
           {:ok, token_type :: integer(), LexerActionExecutor.t() | nil, CharStream.t(),
@@ -60,39 +76,57 @@ defmodule Seed.LexerATNSimulator do
   to just past the matched token; `{:eof, ...}` at end of input; or
   `{:no_viable, ...}` when no rule matches.
   """
-  @spec match(ATN.t(), CharStream.t(), non_neg_integer(), pos_integer(), non_neg_integer()) ::
+  @spec match(
+          ATN.t(),
+          CharStream.t(),
+          non_neg_integer(),
+          pos_integer(),
+          non_neg_integer(),
+          sempred()
+        ) ::
           result()
-  def match(%ATN{} = atn, input, mode, line, column) do
-    start_index = CharStream.index(input)
+  def match(%ATN{} = atn, input, mode, line, column, sempred \\ @default_sempred) do
     start_number = Enum.at(atn.mode_to_start_state, mode)
     start_state = Map.fetch!(atn.states, start_number)
+    cache? = sempred == @default_sempred
+
+    # Bundle the per-match invariants the loop threads unchanged.
+    session = %{atn: atn, start_index: CharStream.index(input), sempred: sempred, cache?: cache?}
 
     configs =
-      DFACache.memoize({atn.cache_key, :lexer_s0, mode}, fn ->
-        compute_start_state(atn, start_state)
+      memoize(cache?, {atn.cache_key, :lexer_s0, mode}, fn ->
+        compute_start_state(atn, start_state, sempred)
       end)
 
     t = CharStream.la(input, 1)
     accept = capture_accept(atn, configs, input, line, column, nil)
-    exec_atn(atn, input, configs, t, line, column, start_index, accept)
+    exec_atn(session, input, configs, t, line, column, accept)
   end
 
-  defp compute_start_state(atn, start_state) do
+  # Caches the computation only when the predicate evaluator is the constant
+  # default; a custom evaluator's result may vary with position, so its
+  # closures and edges are recomputed each time (mirroring how the reference
+  # cannot fold a predicate into a DFA edge).
+  defp memoize(true, key, fun), do: DFACache.memoize(key, fun)
+  defp memoize(false, _key, fun), do: fun.()
+
+  defp compute_start_state(atn, start_state, sempred) do
     start_state.transitions
     |> Enum.with_index()
     |> Enum.reduce(ATNConfigSet.new(), fn {transition, index}, configs ->
       config =
         new_config(atn, transition.target, index + 1, PredictionContext.empty(), nil, false)
 
-      {_reached, configs} = closure(atn, config, configs, false, false)
+      {_reached, configs} = closure(atn, config, configs, false, false, sempred)
       configs
     end)
   end
 
   # --- Main loop ----------------------------------------------------------
 
-  defp exec_atn(atn, input, configs, t, line, column, start_index, accept) do
-    reach = cached_reach_set(atn, configs, t)
+  defp exec_atn(session, input, configs, t, line, column, accept) do
+    %{atn: atn, start_index: start_index, sempred: sempred, cache?: cache?} = session
+    reach = cached_reach_set(atn, configs, t, sempred, cache?)
 
     if ATNConfigSet.empty?(reach) do
       fail_or_accept(accept, input, t, line, column, start_index)
@@ -103,7 +137,7 @@ defmodule Seed.LexerATNSimulator do
       if t == @eof do
         fail_or_accept(accept, input, CharStream.la(input, 1), line, column, start_index)
       else
-        exec_atn(atn, input, reach, CharStream.la(input, 1), line, column, start_index, accept)
+        exec_atn(session, input, reach, CharStream.la(input, 1), line, column, accept)
       end
     end
   end
@@ -164,13 +198,13 @@ defmodule Seed.LexerATNSimulator do
 
   # Memoizes each ATN edge: the reach for a configuration set on a symbol
   # depends only on the grammar, the set, and the symbol.
-  defp cached_reach_set(atn, configs, t) do
-    DFACache.memoize({atn.cache_key, :lexer_edge, ATNConfigSet.configs(configs), t}, fn ->
-      compute_reach_set(atn, configs, t)
+  defp cached_reach_set(atn, configs, t, sempred, cache?) do
+    memoize(cache?, {atn.cache_key, :lexer_edge, ATNConfigSet.configs(configs), t}, fn ->
+      compute_reach_set(atn, configs, t, sempred)
     end)
   end
 
-  defp compute_reach_set(atn, configs, t) do
+  defp compute_reach_set(atn, configs, t, sempred) do
     treat_eof = t == @eof
 
     {reach, _skip_alt} =
@@ -179,19 +213,19 @@ defmodule Seed.LexerATNSimulator do
         if config.alt == skip_alt and config.passed_through_non_greedy do
           {reach, skip_alt}
         else
-          reach_from(atn, config, t, treat_eof, reach, skip_alt)
+          reach_from(atn, config, t, treat_eof, reach, skip_alt, sempred)
         end
       end)
 
     reach
   end
 
-  defp reach_from(atn, config, t, treat_eof, reach, skip_alt) do
+  defp reach_from(atn, config, t, treat_eof, reach, skip_alt, sempred) do
     state = Map.fetch!(atn.states, config.state)
     current_alt_reached = config.alt == skip_alt
 
     Enum.reduce_while(state.transitions, {reach, skip_alt}, fn transition, acc ->
-      reach_transition(atn, config, transition, t, treat_eof, current_alt_reached, acc)
+      reach_transition(atn, config, transition, t, treat_eof, current_alt_reached, acc, sempred)
     end)
   end
 
@@ -202,7 +236,8 @@ defmodule Seed.LexerATNSimulator do
          t,
          treat_eof,
          current_alt_reached,
-         {reach, skip_alt}
+         {reach, skip_alt},
+         sempred
        ) do
     if matches?(transition, t) do
       target =
@@ -215,7 +250,7 @@ defmodule Seed.LexerATNSimulator do
           config.passed_through_non_greedy
         )
 
-      case closure(atn, target, reach, current_alt_reached, treat_eof) do
+      case closure(atn, target, reach, current_alt_reached, treat_eof, sempred) do
         {true, reach} -> {:halt, {reach, config.alt}}
         {false, reach} -> {:cont, {reach, skip_alt}}
       end
@@ -226,17 +261,17 @@ defmodule Seed.LexerATNSimulator do
 
   # --- Closure ------------------------------------------------------------
 
-  defp closure(atn, %ATNConfig{} = config, configs, current_alt_reached, treat_eof) do
+  defp closure(atn, %ATNConfig{} = config, configs, current_alt_reached, treat_eof, sempred) do
     case Map.fetch!(atn.states, config.state) do
       %State{state_type: :rule_stop} = state ->
-        closure_at_stop(atn, config, state, configs, current_alt_reached, treat_eof)
+        closure_at_stop(atn, config, state, configs, current_alt_reached, treat_eof, sempred)
 
       state ->
-        closure_step(atn, config, state, configs, current_alt_reached, treat_eof)
+        closure_step(atn, config, state, configs, current_alt_reached, treat_eof, sempred)
     end
   end
 
-  defp closure_at_stop(atn, config, _state, configs, current_alt_reached, treat_eof) do
+  defp closure_at_stop(atn, config, _state, configs, current_alt_reached, treat_eof, sempred) do
     case config.context do
       :empty ->
         {true, ATNConfigSet.add(configs, config)}
@@ -252,11 +287,11 @@ defmodule Seed.LexerATNSimulator do
             config.passed_through_non_greedy
           )
 
-        closure(atn, popped, configs, current_alt_reached, treat_eof)
+        closure(atn, popped, configs, current_alt_reached, treat_eof, sempred)
     end
   end
 
-  defp closure_step(atn, config, state, configs, current_alt_reached, treat_eof) do
+  defp closure_step(atn, config, state, configs, current_alt_reached, treat_eof, sempred) do
     configs =
       if consuming?(state) and not (current_alt_reached and config.passed_through_non_greedy) do
         ATNConfigSet.add(configs, config)
@@ -266,16 +301,16 @@ defmodule Seed.LexerATNSimulator do
 
     Enum.reduce(state.transitions, {current_alt_reached, configs}, fn transition,
                                                                       {reached, configs} ->
-      case epsilon_target(atn, config, transition, treat_eof) do
+      case epsilon_target(atn, config, transition, treat_eof, sempred) do
         nil -> {reached, configs}
-        target -> closure(atn, target, configs, reached, treat_eof)
+        target -> closure(atn, target, configs, reached, treat_eof, sempred)
       end
     end)
   end
 
   # --- Epsilon successors -------------------------------------------------
 
-  defp epsilon_target(atn, config, %Transition{type: :rule} = transition, _treat_eof) do
+  defp epsilon_target(atn, config, %Transition{type: :rule} = transition, _treat_eof, _sempred) do
     context = PredictionContext.singleton(config.context, transition.follow_state)
 
     new_config(
@@ -288,15 +323,32 @@ defmodule Seed.LexerATNSimulator do
     )
   end
 
-  defp epsilon_target(_atn, _config, %Transition{type: :precedence}, _treat_eof) do
+  defp epsilon_target(_atn, _config, %Transition{type: :precedence}, _treat_eof, _sempred) do
     raise ArgumentError, "precedence predicates are not valid in a lexer"
   end
 
-  defp epsilon_target(_atn, _config, %Transition{type: :predicate}, _treat_eof) do
-    raise ArgumentError, "lexer semantic predicates are not supported yet"
+  # A lexer predicate gates its transition: it is followed only when the
+  # evaluator (the default, or a caller-supplied one) reports it satisfied.
+  defp epsilon_target(
+         atn,
+         config,
+         %Transition{type: :predicate} = transition,
+         _treat_eof,
+         sempred
+       ) do
+    if sempred.(transition.rule_index, transition.pred_index) do
+      new_config(
+        atn,
+        transition.target,
+        config.alt,
+        config.context,
+        config.lexer_action_executor,
+        config.passed_through_non_greedy
+      )
+    end
   end
 
-  defp epsilon_target(atn, config, %Transition{type: :action} = transition, _treat_eof) do
+  defp epsilon_target(atn, config, %Transition{type: :action} = transition, _treat_eof, _sempred) do
     executor = action_executor(atn, config, transition)
 
     new_config(
@@ -309,7 +361,7 @@ defmodule Seed.LexerATNSimulator do
     )
   end
 
-  defp epsilon_target(atn, config, %Transition{type: :epsilon} = transition, _treat_eof) do
+  defp epsilon_target(atn, config, %Transition{type: :epsilon} = transition, _treat_eof, _sempred) do
     new_config(
       atn,
       transition.target,
@@ -320,7 +372,7 @@ defmodule Seed.LexerATNSimulator do
     )
   end
 
-  defp epsilon_target(atn, config, transition, true) do
+  defp epsilon_target(atn, config, transition, true, _sempred) do
     if matches?(transition, @eof) do
       new_config(
         atn,
@@ -335,7 +387,7 @@ defmodule Seed.LexerATNSimulator do
     end
   end
 
-  defp epsilon_target(_atn, _config, _transition, false), do: nil
+  defp epsilon_target(_atn, _config, _transition, false, _sempred), do: nil
 
   # Lexer actions only attach while still in the start rule (empty context).
   defp action_executor(atn, %ATNConfig{context: :empty} = config, %Transition{action_index: index})

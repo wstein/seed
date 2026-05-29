@@ -56,8 +56,8 @@ N/A by design.
 | Modes (`mode` / `pushMode` / `popMode`) | ✅ | Mode stack in `Seed.Lexer`.
 | Channels (tagging tokens) | ✅ | `channel(...)` sets the token channel.
 | Commands: `skip`, `more`, `type`, `channel`, `mode`, `pushMode`, `popMode` | ✅ | `Seed.ATN.LexerActionExecutor`.
-| Custom embedded actions (`{...}`) | ✗ | Needs host code; currently a no-op (see Roadmap B).
-| Lexer semantic predicates (`{...}?`) | ✗ | Unsupported; raises during simulation.
+| Custom embedded actions (`{...}`) | ✗ | Needs host code; currently a no-op.
+| Lexer semantic predicates (`{...}?`) | ✅ | Evaluated during the rule's closure via a caller-supplied evaluator (`Seed.Lexer.new/3`, or `Seed.tokenize/3`'s `:sempred`); the default treats every predicate as satisfied. A custom evaluator bypasses the lexer DFA cache (its result may vary with position), as the reference cannot fold a predicate into a DFA edge.
 |===
 
 === Token streams
@@ -141,13 +141,13 @@ shippable behind the project's quality gate (`make verify`).
 | Correctness for grammars that route whitespace/comments to a hidden
   channel rather than `skip`.
 
-| B. Predicate callbacks
-| Let the caller (and `Seed.Generated`) supply a predicate evaluator keyed by
-  `{rule_index, pred_index}` and evaluate it during conflict resolution.
-  *Done for the parser; lexer predicates are the remaining sub-step.* Embedded
-  actions are deliberately excluded here — without typed contexts they have no
-  attributes to act on, so meaningful action support is folded into Phase C,
-  and post-parse work is already covered by the tree walk.
+| B. Predicate callbacks _(done)_
+| The caller (and `Seed.Generated`) supplies a predicate evaluator keyed by
+  rule and predicate index; the parser evaluates it during conflict
+  resolution and the lexer during a rule's closure. Embedded actions are
+  deliberately excluded — without typed contexts they have no attributes to
+  act on, so meaningful action support is folded into Phase C, and post-parse
+  work is already covered by the tree walk.
 | Custom semantic predicates — the largest semantic gap — without abandoning
   the interpreter model.
 

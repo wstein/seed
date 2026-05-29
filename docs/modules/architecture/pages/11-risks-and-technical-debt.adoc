@@ -16,14 +16,14 @@ that are *architectural* rather than merely unfinished:
 
 * *Custom semantic predicates* (`{...}?`) and *embedded actions* (`{...}`)
   cannot be run by the interpreter — it cannot execute the host-language code
-  they compile to. Predicates are now handled by deferring the decision to a
-  caller-supplied evaluator (`Seed.ParserInterpreter.parse/4`'s `:sempred`, or
-  an overridable `sempred/3` in `Seed.Generated`), so predicated grammars
-  disambiguate correctly; the lexer predicate path is the remaining sub-step.
-  Embedded actions stay unaddressed by design: without typed contexts they
-  have no attributes to act on, so meaningful support is folded into the
-  codegen target, and post-parse computation is already served by the tree
-  walk.
+  they compile to. Predicates are handled by deferring the decision to a
+  caller-supplied evaluator: the parser's (`Seed.ParserInterpreter.parse/4`'s
+  `:sempred`, or an overridable `sempred/3` in `Seed.Generated`) disambiguates
+  predicated alternatives, and the lexer's (`Seed.Lexer.new/3`, or
+  `Seed.tokenize/3`'s `:sempred`) gates predicated rules. Embedded actions
+  stay unaddressed by design: without typed contexts they have no attributes
+  to act on, so meaningful support is folded into the codegen target, and
+  post-parse computation is already served by the tree walk.
 * *Off-channel token filtering* is absent: the parser's token stream drops
   only `skip`-ed tokens, so a grammar that routes whitespace or comments to a
   hidden channel (rather than `skip`) leaks those tokens to the parser.

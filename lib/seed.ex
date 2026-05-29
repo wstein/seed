@@ -43,10 +43,17 @@ defmodule Seed do
 
   Returns `{:ok, tokens}` (ending with the EOF token) or
   `{:error, [Seed.Diagnostic.t()]}`.
+
+  Options:
+
+    * `:sempred` — a `t:Seed.LexerATNSimulator.sempred/0` evaluating lexer
+      semantic predicates `{...}?`; defaults to treating every predicate as
+      satisfied.
   """
-  @spec tokenize(Grammar.t(), binary()) :: {:ok, [Token.t()]} | {:error, [Diagnostic.t()]}
-  def tokenize(%Grammar{atn: atn}, input) when is_binary(input) do
-    atn |> Lexer.new(CharStream.new(input)) |> Lexer.tokenize()
+  @spec tokenize(Grammar.t(), binary(), keyword()) ::
+          {:ok, [Token.t()]} | {:error, [Diagnostic.t()]}
+  def tokenize(%Grammar{atn: atn}, input, opts \\ []) when is_binary(input) do
+    atn |> Lexer.new(CharStream.new(input), opts[:sempred]) |> Lexer.tokenize()
   end
 
   @doc """

@@ -3,11 +3,14 @@ defmodule Seed.LexerTest do
 
   alias Seed.ATNDeserializer
   alias Seed.CharStream
+  alias Seed.Interp
   alias Seed.Lexer
   alias Seed.Token
   alias Seed.TokenStream
+  alias Seed.Vocabulary
 
   @atn_dir Path.expand("../fixtures/atn", __DIR__)
+  @interp_dir Path.expand("../fixtures/interp", __DIR__)
   @lex_dir Path.expand("../fixtures/lex", __DIR__)
   @fixtures ~w(hello expr cover)
 
@@ -48,6 +51,23 @@ defmodule Seed.LexerTest do
 
     assert {:error, [%Seed.Diagnostic{code: :no_viable_token, severity: :error}]} =
              Lexer.tokenize(lexer)
+  end
+
+  test "a lexer semantic predicate selects which rule wins" do
+    grammar = Interp.load!(Path.join(@interp_dir, "LexPred.interp"))
+    # KEYWORD and WORD both match "abc"; the `{keyword}?` predicate on KEYWORD
+    # decides between them.
+    first_token = fn lexer ->
+      {:ok, [token | _]} = Lexer.tokenize(lexer)
+      Vocabulary.display_name(grammar.vocabulary, token.type)
+    end
+
+    # Default: the predicate is satisfied, so KEYWORD (the earlier rule) wins.
+    assert first_token.(Lexer.new(grammar.atn, CharStream.new("abc"))) == "KEYWORD"
+
+    # A false predicate prunes KEYWORD, leaving WORD.
+    pruned = Lexer.new(grammar.atn, CharStream.new("abc"), fn _rule, _pred -> false end)
+    assert first_token.(pruned) == "WORD"
   end
 
   defp tokenize(name) do

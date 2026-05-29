@@ -41,7 +41,8 @@ defmodule Seed.Lexer do
           type: integer(),
           token_start_index: non_neg_integer(),
           token_start_line: pos_integer(),
-          token_start_column: non_neg_integer()
+          token_start_column: non_neg_integer(),
+          sempred: LexerATNSimulator.sempred() | nil
         }
 
   @enforce_keys [:atn, :input]
@@ -56,7 +57,8 @@ defmodule Seed.Lexer do
             type: 0,
             token_start_index: 0,
             token_start_line: 1,
-            token_start_column: 0
+            token_start_column: 0,
+            sempred: nil
 
   defmodule Error do
     @moduledoc "Raised when the lexer cannot match any token; carries a `Seed.Diagnostic`."
@@ -66,9 +68,16 @@ defmodule Seed.Lexer do
     def message(%__MODULE__{diagnostic: diagnostic}), do: diagnostic.message
   end
 
-  @doc "Builds a lexer over `atn` reading the character stream `input`."
-  @spec new(ATN.t(), CharStream.t()) :: t()
-  def new(%ATN{} = atn, input), do: %__MODULE__{atn: atn, input: input}
+  @doc """
+  Builds a lexer over `atn` reading the character stream `input`.
+
+  `sempred` evaluates lexer semantic predicates `{...}?` (see
+  `t:Seed.LexerATNSimulator.sempred/0`); when omitted, every predicate is
+  treated as satisfied.
+  """
+  @spec new(ATN.t(), CharStream.t(), LexerATNSimulator.sempred() | nil) :: t()
+  def new(%ATN{} = atn, input, sempred \\ nil),
+    do: %__MODULE__{atn: atn, input: input, sempred: sempred}
 
   @doc """
   Returns the next token and the advanced lexer.
@@ -118,10 +127,20 @@ defmodule Seed.Lexer do
     }
   end
 
+  # Runs the ATN simulator, forwarding a configured predicate evaluator when
+  # present (otherwise the simulator's satisfied-by-default one applies).
+  defp simulate(%__MODULE__{sempred: nil} = lexer) do
+    LexerATNSimulator.match(lexer.atn, lexer.input, lexer.mode, lexer.line, lexer.column)
+  end
+
+  defp simulate(%__MODULE__{sempred: sempred} = lexer) do
+    LexerATNSimulator.match(lexer.atn, lexer.input, lexer.mode, lexer.line, lexer.column, sempred)
+  end
+
   defp match_token(lexer) do
     lexer = %{lexer | type: @invalid_type}
 
-    case LexerATNSimulator.match(lexer.atn, lexer.input, lexer.mode, lexer.line, lexer.column) do
+    case simulate(lexer) do
       {:eof, input, line, column} ->
         lexer = %{lexer | input: input, line: line, column: column, hit_eof: true}
         {emit_eof(lexer), lexer}

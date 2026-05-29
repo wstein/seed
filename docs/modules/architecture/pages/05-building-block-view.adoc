@@ -35,7 +35,10 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   `Seed.ATN.ATNConfigSet`, `Seed.ATN.LexerActionExecutor` — the
   configuration and call-stack types the simulators reason over.
 * `Seed.LexerATNSimulator` — matches one token by simulating the lexer
-  ATN (closure, reach, longest-match rollback), without the DFA cache.
+  ATN (closure, reach, longest-match rollback). A lexer semantic predicate
+  `{...}?` gates its transition through the lexer's `sempred` callback; a
+  custom evaluator bypasses the DFA cache, since its result may vary with
+  position.
 * `Seed.Lexer` — the token-producing driver: lexer commands, modes, and
   emission. Validated against the reference lexer's token streams.
 
