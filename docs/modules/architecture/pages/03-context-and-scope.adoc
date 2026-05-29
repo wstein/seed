@@ -30,7 +30,14 @@ grammars or generate ATNs — that is the tool's job.
 
 == Out Of Scope
 
-* Grammar analysis, ATN construction, and adaptive-LL(*) decision
-  *computation* at the tool level.
 * A networked or stateful service; Seed is a library of pure functions
   (xref:09-architecture-decisions.adoc#adr-004[ADR-004]).
+
+== Out Of Scope For v1 (Planned)
+
+* Grammar analysis, ATN construction, and `.g4` parsing at the tool level.
+  These were originally out of scope (xref:09-architecture-decisions.adoc#adr-001[ADR-001]);
+  now that the runtime is mature they are planned as a separate,
+  opt-in self-hosting milestone
+  (xref:09-architecture-decisions.adoc#adr-007[ADR-007]). Until it ships, the
+  reused ANTLR/antlr-ng tool is the supported path.

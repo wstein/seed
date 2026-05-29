@@ -43,7 +43,7 @@ N/A by design.
 
 | Serialized ATN v4 deserialization | ✅ | `Seed.ATNDeserializer`; the shared contract of ANTLR4/antlr-ng/ANTLR5.
 | `.interp` runtime loading | ✅ | `Seed.Interp` → `Seed.Grammar`. Seed-specific convenience; reference runtimes embed the ATN in generated source instead.
-| `.g4` parsing, grammar analysis, ATN construction | ⊘ | Out of scope — produced by the ANTLR/antlr-ng tool.
+| `.g4` parsing, grammar analysis, ATN construction | ✗ (planned) | Currently produced by the ANTLR/antlr-ng tool. A self-hosting Elixir tool is planned as a separate milestone (xref:architecture:09-architecture-decisions.adoc#adr-007[ADR-007]).
 |===
 
 === Lexer
@@ -167,5 +167,11 @@ shippable behind the project's quality gate (`make verify`).
 |===
 
 After A–C, Seed reaches functional parity for grammars that use embedded
-actions and predicates; D and E are performance and convenience. Grammar
-analysis and ATN construction remain permanently out of scope by design.
+actions and predicates; D and E are performance and convenience.
+
+Separately, the *self-hosting tool* (`.g4` → ATN, planned in
+xref:architecture:09-architecture-decisions.adoc#adr-007[ADR-007]) is its own
+track: it removes the external Java/antlr-ng build dependency but does not
+change what a grammar can do at run time. The two tracks are independent —
+the runtime gaps above are about *capability*, the tool is about
+*self-hosting*.

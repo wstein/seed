@@ -29,6 +29,13 @@ format rather than its internals. The choice of which tool authors the
 Elixir target is deferred to the code-generation milestone; the runtime is
 tool-agnostic because it consumes serialized output (see <<adr-002>>).
 
+*Amendment (see <<adr-007>>):* "with no user-facing benefit" was true while
+the runtime did not exist. Now that the runtime is mature and validated, a
+self-hosting Elixir tool would remove the external Java/TypeScript build
+dependency. ADR-007 plans that tool as a separate, opt-in milestone; it does
+not void this decision (the tool/runtime split stands — Seed simply provides
+both), and the reused tool remains fully supported.
+
 [#adr-002]
 === ADR-002: The serialized ATN is the contract
 
@@ -144,3 +151,56 @@ benchmarks rather than speculation.
 *Consequences:* Installation stays `mix`-simple. Single-parse throughput
 is a documented tradeoff; concurrent-parse isolation is the compensating
 strength.
+
+[#adr-007]
+=== ADR-007: A self-hosting Elixir grammar tool (`.g4` → ATN)
+
+*Status:* Proposed
+
+*Context:* <<adr-001>> deferred the grammar tool — `.g4` parsing, semantic
+analysis, and ATN construction — because reproducing it had "no user-facing
+benefit" while no runtime existed. That premise has changed. The runtime is
+now mature and oracle-validated, which makes a self-hosting tool both
+worthwhile and unusually tractable:
+
+* *Worthwhile* — it removes the external Java/antlr-ng dependency from the
+  build, giving a pure-BEAM grammar-to-parser pipeline (`mix`-only, no JVM),
+  which matters for reproducible builds and BEAM-native deployment.
+* *Tractable* — the tool's output is exactly the `%Seed.ATN{}` the runtime
+  already consumes, so construction has a *precise, executable target*; and
+  the canonical tool emits a serialized ATN for any grammar, so every step
+  has a *differential oracle* (`Seed.ATNDeserializer` turns the reference's
+  `.interp` into a `%Seed.ATN{}` to diff against — no ATN *serializer* is
+  needed). The `.g4` front end bootstraps on Seed's own runtime using the
+  ANTLR-grammar ATN as a fixture.
+
+*Decision:* Plan — do not yet build — a self-hosting tool as a distinct,
+opt-in milestone, validated phase by phase against the reference ATN. It
+keeps the <<adr-002>> serialized-ATN structure as its internal target so the
+runtime is unaffected. ADR-001's tool/runtime split is preserved; Seed gains
+a *second* tool option alongside the reused one, not a replacement.
+
+*Phased plan (each diffed against the reference `.interp` for the existing
+fixtures — Hello → Expr → Ctx → Cover → JSON):*
+
+[cols="1,5",options="header"]
+|===
+| Phase | Work
+
+| 0. Bootstrap | Parse `.g4` with Seed's own runtime, driven by the ANTLRv4-grammar ATN obtained from the reference tool as a fixture. Doubles as a large real-grammar parity test.
+| 1. Grammar model | Build the AST and symbol model from the `.g4` parse tree: rules, tokens, literals, fragments, channels, modes; resolve references; assign token types.
+| 2. Lexer ATN | Construct the lexer ATN (rules, sets/ranges, EBNF blocks, lexer commands) and diff the `%Seed.ATN{}` against the reference `*Lexer.interp`.
+| 3. Parser ATN | Construct the parser ATN (alternatives, EBNF block/loop states, decisions, rule-stop and follow wiring) and diff against the reference `.interp`.
+| 4. Left recursion | Apply the precedence-climbing transform (the hardest phase, isolated) and diff.
+| 5. Analysis & emit | Grammar diagnostics (collisions, unreachable rules), vocabulary, and `.interp`/`Seed.Grammar` emission; optionally an ATN *serializer* for `.interp` round-tripping.
+|===
+
+*Consequences:* Roughly doubles the codebase; the oracle de-risks
+correctness, not effort. It does *not* unblock the runtime's
+embedded-action/predicate execution — that is a runtime concern
+(<<adr-003>>, and the predicate callbacks added for grammars that need
+disambiguation) and is orthogonal to building the tool. Grammar analysis is
+in scope only as needed to construct a correct ATN; replicating every
+reference warning is not a goal. Until the milestone ships, the reused
+ANTLR/antlr-ng tool remains the supported path
+(xref:manual:feature-parity.adoc[Feature Parity And Roadmap]).
