@@ -22,13 +22,17 @@ Early development. The implemented and verified foundation is:
   `Seed.TokenStream` (token buffering).
 - **ATN model & deserializer** — `Seed.ATN` and `Seed.ATNDeserializer`
   reconstruct the full ATN graph (states, transitions, interval sets,
-  lexer actions) from the tool's serialized integer stream. Each parse is
-  validated, decision-for-decision, against the canonical ANTLR4 runtime
-  via golden fixtures (see `test/fixtures/atn/`).
+  lexer actions) from the tool's serialized integer stream, validated
+  decision-for-decision against the canonical ANTLR4 runtime via golden
+  fixtures (see `test/fixtures/atn/`).
+- **Lexer** — `Seed.LexerATNSimulator` and `Seed.Lexer` tokenize input by
+  simulating the lexer ATN, including lexer commands (`skip`, `channel`,
+  `type`, modes). Tokenization is validated against the reference lexer's
+  token streams (see `test/fixtures/lex/`).
 
-The ATN simulators (lexer and parser adaptive LL(\*) prediction) and the
-Elixir code-generation target are the next milestones — see the
-architecture docs for the full roadmap.
+The parser (adaptive LL(\*) prediction), an ETS-backed DFA cache for the
+lexer, and the Elixir code-generation target are the next milestones — see
+the architecture docs for the full roadmap.
 
 ## Design principles
 

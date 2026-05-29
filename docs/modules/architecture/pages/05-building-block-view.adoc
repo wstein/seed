@@ -29,11 +29,21 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * `Seed.ATNDeserializer` — reconstructs the ATN from the tool's serialized
   integer stream, validated against the canonical runtime
   (xref:09-architecture-decisions.adoc#adr-002[ADR-002]).
+* `Seed.ATN.PredictionContext`, `Seed.ATN.ATNConfig`,
+  `Seed.ATN.ATNConfigSet`, `Seed.ATN.LexerActionExecutor` — the
+  configuration and call-stack types the simulators reason over.
+* `Seed.LexerATNSimulator` — matches one token by simulating the lexer
+  ATN (closure, reach, longest-match rollback), without the DFA cache.
+* `Seed.Lexer` — the token-producing driver: lexer commands, modes, and
+  emission. Validated against the reference lexer's token streams.
 
 === Planned
 
-* *Prediction support* — prediction context, configuration sets, and DFA.
-* *Simulators* — the lexer and parser (adaptive LL(*)) ATN simulators.
+* *Lexer DFA cache* — an ETS-backed memoization of lexer decisions
+  (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure
+  optimization over the current simulator.
+* *Parser prediction* — the array prediction context and merge algorithm,
+  semantic contexts, the DFA, and the adaptive LL(*) parser simulator.
 * *Recognizer bases* — lexer and parser base behaviours, error listeners
   and recovery strategy, parse-tree nodes, and the tree walker.
 * *Code generation* — the Elixir target that turns a grammar into a Seed
