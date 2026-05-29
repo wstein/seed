@@ -11,7 +11,9 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 
 === Implemented
 
-* `Seed` — top-level facade and project entry point.
+* `Seed` — top-level facade and project entry point; `Seed.parse/4` and
+  `Seed.tokenize/2` run the lex-to-parse pipeline from loaded grammars and
+  a binary input, returning `{:ok, _} | {:error, [diagnostic]}`.
 * `Seed.Token` — the token value (type, text, source positions, channel)
   and the well-known token-type constants (`EOF`, invalid type).
 * `Seed.Vocabulary` — the mapping from integer token types to literal,

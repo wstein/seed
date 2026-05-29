@@ -64,6 +64,23 @@ for the full roadmap.
   (tokens → tree), so parsers are plain modules and functions. Per-parse
   isolation is left to the caller's own processes.
 
+## Usage
+
+Generate a grammar's `.interp` files with the ANTLR tool, then lex and
+parse with no code generation:
+
+```elixir
+lexer = Seed.Interp.load!("ExprLexer.interp")
+parser = Seed.Interp.load!("Expr.interp")
+
+{:ok, tree} = Seed.parse(parser, lexer, "x = 1 + 2 * 3;", 0)
+Seed.Trees.to_string_tree(tree, parser)
+# => "(prog (stat x = (expr (expr 1) + (expr (expr 2) * (expr 3))) ;) <EOF>)"
+```
+
+`Seed.parse/4` and `Seed.tokenize/2` return `{:ok, result}` or
+`{:error, [Seed.Diagnostic.t()]}`.
+
 ## Getting started
 
 Requires Elixir `~> 1.19` on Erlang/OTP 28.
