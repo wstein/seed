@@ -98,8 +98,16 @@ defmodule Seed.LexerATNSimulator do
         compute_start_state(atn, start_state, sempred)
       end)
 
+    # The accepting state of a configuration set is a pure function of the set,
+    # so it is computed once (per mode / per cached edge) rather than scanned
+    # on every character. The start state's depends only on the mode.
+    s0_accept =
+      memoize(cache?, {atn.cache_key, :lexer_s0_accept, mode}, fn ->
+        first_accept(atn, configs)
+      end)
+
     t = CharStream.la(input, 1)
-    accept = capture_accept(atn, configs, input, line, column, nil)
+    accept = update_accept(s0_accept, input, line, column, nil)
     exec_atn(session, input, configs, t, line, column, accept)
   end
 
@@ -126,13 +134,13 @@ defmodule Seed.LexerATNSimulator do
 
   defp exec_atn(session, input, configs, t, line, column, accept) do
     %{atn: atn, start_index: start_index, sempred: sempred, cache?: cache?} = session
-    reach = cached_reach_set(atn, configs, t, sempred, cache?)
+    {reach, reach_accept} = cached_reach_set(atn, configs, t, sempred, cache?)
 
     if ATNConfigSet.empty?(reach) do
       fail_or_accept(accept, input, t, line, column, start_index)
     else
       {input, line, column} = consume_unless_eof(input, t, line, column)
-      accept = capture_accept(atn, reach, input, line, column, accept)
+      accept = update_accept(reach_accept, input, line, column, accept)
 
       if t == @eof do
         fail_or_accept(accept, input, CharStream.la(input, 1), line, column, start_index)
@@ -166,20 +174,19 @@ defmodule Seed.LexerATNSimulator do
     {:no_viable, input, start_index, line, column}
   end
 
-  defp capture_accept(atn, configs, input, line, column, previous) do
-    case first_accept(atn, configs) do
-      nil ->
-        previous
+  # Builds the accepting `SimState` from the precomputed accept info (the
+  # token type and executor), or keeps the previous best when this set does
+  # not accept.
+  defp update_accept(nil, _input, _line, _column, previous), do: previous
 
-      {token_type, executor} ->
-        %SimState{
-          index: CharStream.index(input),
-          line: line,
-          column: column,
-          token_type: token_type,
-          executor: executor
-        }
-    end
+  defp update_accept({token_type, executor}, input, line, column, _previous) do
+    %SimState{
+      index: CharStream.index(input),
+      line: line,
+      column: column,
+      token_type: token_type,
+      executor: executor
+    }
   end
 
   defp first_accept(atn, configs) do
@@ -200,7 +207,8 @@ defmodule Seed.LexerATNSimulator do
   # depends only on the grammar, the set, and the symbol.
   defp cached_reach_set(atn, configs, t, sempred, cache?) do
     memoize(cache?, {atn.cache_key, :lexer_edge, ATNConfigSet.configs(configs), t}, fn ->
-      compute_reach_set(atn, configs, t, sempred)
+      reach = compute_reach_set(atn, configs, t, sempred)
+      {reach, first_accept(atn, reach)}
     end)
   end
 

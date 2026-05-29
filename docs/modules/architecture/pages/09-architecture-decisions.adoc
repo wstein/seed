@@ -266,3 +266,19 @@ fallback, and codegen is additive, never a replacement. Generated code must
 stay inspectable (a tested affordance), preserving <<adr-003>>. The ladder is
 also the order of increasing maintenance cost, which is why each rung must
 earn the next on the benchmark rather than by intuition.
+
+*Status of rung 1 (flatten the interpreter):* A sampling profile (dependency-
+free, since this OTP build lacks the `tools` app) refuted the initial guess
+that the per-symbol ETS cache key dominated — `Seed.DFACache.memoize` was under
+4% and `:erlang.phash2` never appeared. The real costs were ordinary
+interpreter overhead: an O(n²) `children ++ [child]` append on wide rules
+(`Seed.ParserRuleContext` now prepends and `seal/1`s once when a context is
+finished), an O(n) `length(transitions)` per state (a single-transition
+pattern-match fast path), and a per-character accepting-state *scan* in the
+lexer (the accept info is now computed once with the cached edge). All trees
+stay byte-identical (the oracle suite passed unchanged). Measured gain on the
+460 KiB / 200 k-token document: parse ≈11%, lex ≈7%, total ≈8% (2.79 s →
+2.56 s). The lesson is the decision: profile-guided flattening of a
+pure-Elixir interpreter yields single digits because the cost is broadly
+distributed, so an order-of-magnitude improvement requires rung 2 (codegen) —
+exactly the gate this ADR sets.

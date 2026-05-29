@@ -122,9 +122,10 @@ defmodule Seed.ParserInterpreter do
 
   defp at_rule_stop(parser, atn, state, push_states) do
     if Parser.current_context(parser).invoking_state == -1 do
-      # The start rule's context is the finished tree; return it with the
-      # parser so accumulated diagnostics can be surfaced.
-      {Parser.current_context(parser), parser}
+      # The start rule's context is the finished tree; seal it (its children
+      # were built reversed) and return it with the parser so accumulated
+      # diagnostics can be surfaced.
+      {ParserRuleContext.seal(Parser.current_context(parser)), parser}
     else
       parser |> visit_rule_stop_state(atn, state) |> run(atn, push_states)
     end
@@ -132,14 +133,15 @@ defmodule Seed.ParserInterpreter do
 
   # --- Visiting a state ---------------------------------------------------
 
-  defp visit_state(parser, atn, %State{transitions: transitions} = state, push_states) do
-    edge =
-      if length(transitions) > 1 do
-        ParserATNSimulator.adaptive_predict(parser, state.decision)
-      else
-        1
-      end
+  # Single transition (the common, non-decision case): no prediction, no list
+  # scan.
+  defp visit_state(parser, atn, %State{transitions: [transition]} = state, push_states) do
+    parser = apply_transition(parser, atn, state, transition, push_states)
+    %{parser | state: transition.target}
+  end
 
+  defp visit_state(parser, atn, %State{transitions: transitions} = state, push_states) do
+    edge = ParserATNSimulator.adaptive_predict(parser, state.decision)
     transition = Enum.at(transitions, edge - 1)
     parser = apply_transition(parser, atn, state, transition, push_states)
     %{parser | state: transition.target}

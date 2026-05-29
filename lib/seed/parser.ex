@@ -142,8 +142,12 @@ defmodule Seed.Parser do
         rule_index,
         invoking_state
       ) do
+    # `previous` is finished being built, so seal it before it becomes a
+    # child of the new recursion frame.
     wrapper =
-      rule_index |> ParserRuleContext.new(invoking_state) |> ParserRuleContext.add_child(previous)
+      rule_index
+      |> ParserRuleContext.new(invoking_state)
+      |> ParserRuleContext.prepend_child(ParserRuleContext.seal(previous))
 
     %{parser | frames: [wrapper | rest]}
   end
@@ -383,7 +387,8 @@ defmodule Seed.Parser do
   @doc "Leaves a normal rule: pops the frame, returns to the caller, and reparents."
   @spec exit_rule(t()) :: t()
   def exit_rule(%__MODULE__{frames: [completed | rest]} = parser) do
-    %{parser | state: completed.invoking_state, frames: rest} |> add_child(completed)
+    %{parser | state: completed.invoking_state, frames: rest}
+    |> add_child(ParserRuleContext.seal(completed))
   end
 
   @doc """
@@ -401,6 +406,7 @@ defmodule Seed.Parser do
         parent_context_stack: tl(parser.parent_context_stack)
     }
 
+    result = ParserRuleContext.seal(result)
     {result, add_child(parser, result)}
   end
 
@@ -409,6 +415,6 @@ defmodule Seed.Parser do
   defp add_child(%__MODULE__{frames: []} = parser, _child), do: parser
 
   defp add_child(%__MODULE__{frames: [ctx | rest]} = parser, child) do
-    %{parser | frames: [ParserRuleContext.add_child(ctx, child) | rest]}
+    %{parser | frames: [ParserRuleContext.prepend_child(ctx, child) | rest]}
   end
 end
