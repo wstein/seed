@@ -9,14 +9,26 @@ defmodule Seed.ParserRuleContext do
   """
 
   @type child :: t() | Seed.TerminalNode.t()
-  @type t :: %__MODULE__{rule_index: non_neg_integer(), children: [child()]}
+  @type t :: %__MODULE__{
+          rule_index: non_neg_integer(),
+          children: [child()],
+          invoking_state: integer()
+        }
 
   @enforce_keys [:rule_index]
-  defstruct rule_index: nil, children: []
+  defstruct rule_index: nil, children: [], invoking_state: -1
 
-  @doc "Returns a new context for `rule_index`."
-  @spec new(non_neg_integer()) :: t()
-  def new(rule_index) when is_integer(rule_index), do: %__MODULE__{rule_index: rule_index}
+  @doc """
+  Returns a new context for `rule_index`.
+
+  `invoking_state` is the ATN state from which the rule was invoked (`-1`
+  for the root); the parser uses it to return to the caller. It does not
+  affect tree rendering.
+  """
+  @spec new(non_neg_integer(), integer()) :: t()
+  def new(rule_index, invoking_state \\ -1) when is_integer(rule_index) do
+    %__MODULE__{rule_index: rule_index, invoking_state: invoking_state}
+  end
 
   @doc "Appends `child` (a rule context or terminal) to the context."
   @spec add_child(t(), child()) :: t()

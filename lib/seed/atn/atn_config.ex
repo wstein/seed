@@ -19,15 +19,28 @@ defmodule Seed.ATN.ATNConfig do
   """
 
   alias Seed.ATN.PredictionContext
+  alias Seed.ATN.SemanticContext
 
   @type t :: %__MODULE__{
           state: non_neg_integer(),
           alt: pos_integer(),
           context: PredictionContext.t(),
+          semantic_context: SemanticContext.t(),
+          reaches_into_outer_context: non_neg_integer(),
+          precedence_filter_suppressed: boolean(),
           lexer_action_executor: Seed.ATN.LexerActionExecutor.t() | nil,
           passed_through_non_greedy: boolean()
         }
 
   @enforce_keys [:state, :alt, :context]
-  defstruct [:state, :alt, :context, lexer_action_executor: nil, passed_through_non_greedy: false]
+  defstruct [
+    :state,
+    :alt,
+    :context,
+    semantic_context: :none,
+    reaches_into_outer_context: 0,
+    precedence_filter_suppressed: false,
+    lexer_action_executor: nil,
+    passed_through_non_greedy: false
+  ]
 end

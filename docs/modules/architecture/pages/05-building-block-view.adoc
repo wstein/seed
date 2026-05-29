@@ -37,13 +37,21 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * `Seed.Lexer` — the token-producing driver: lexer commands, modes, and
   emission. Validated against the reference lexer's token streams.
 
+* `Seed.ATN.PredictionContext` (array form + merge), `Seed.ATN.SemanticContext`,
+  `Seed.ATN.ParserATNConfigSet` (context-merging), and `Seed.ATN.PredictionMode`
+  — the parser prediction data layer.
+* `Seed.ParserATNSimulator` — adaptive LL(*) prediction (SLL stage) with the
+  left-recursion precedence filter, without the DFA cache.
+* `Seed.Parser` and `Seed.ParserInterpreter` — the ATN-walking tree builder,
+  including left-recursion. Validated against the reference parser's trees.
+
 === Planned
 
 * *Lexer DFA cache* — an ETS-backed memoization of lexer decisions
   (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure
   optimization over the current simulator.
-* *Parser prediction* — the array prediction context and merge algorithm,
-  semantic contexts, the DFA, and the adaptive LL(*) parser simulator.
+* *Full-context (LL) fallback* — for grammars that are ambiguous under SLL.
+* *Code generation* — the Elixir target that emits a parser from a grammar.
 * *Recognizer bases* — lexer and parser base behaviours, error listeners
   and recovery strategy, parse-tree nodes, and the tree walker.
 * *Code generation* — the Elixir target that turns a grammar into a Seed

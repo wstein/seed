@@ -27,12 +27,17 @@ Early development. The implemented and verified foundation is:
   fixtures (see `test/fixtures/atn/`).
 - **Lexer** — `Seed.LexerATNSimulator` and `Seed.Lexer` tokenize input by
   simulating the lexer ATN, including lexer commands (`skip`, `channel`,
-  `type`, modes). Tokenization is validated against the reference lexer's
-  token streams (see `test/fixtures/lex/`).
+  `type`, modes). Validated against the reference lexer's token streams
+  (see `test/fixtures/lex/`).
+- **Parser** — `Seed.ParserATNSimulator` (adaptive LL(\*) prediction with
+  the precedence filter) and `Seed.ParserInterpreter` build a parse tree by
+  walking the ATN, including left-recursive rules. Validated against the
+  reference parser's trees (see `test/fixtures/parse/`), including operator
+  precedence.
 
-The parser (adaptive LL(\*) prediction), an ETS-backed DFA cache for the
-lexer, and the Elixir code-generation target are the next milestones — see
-the architecture docs for the full roadmap.
+An ETS-backed DFA cache (a pure speedup), full-context (LL) fallback for
+SLL-ambiguous grammars, and the Elixir code-generation target are the next
+milestones — see the architecture docs for the full roadmap.
 
 ## Design principles
 
