@@ -45,7 +45,11 @@ from a grammar.
 *Consequences:* The existing ANTLR grammar corpus becomes a ready-made
 conformance oracle — any grammar the tool can serialize, Seed can attempt
 to run, and decisions can be diffed against the reference runtime. Seed
-must track the serialization version the tool emits.
+must track the serialization version the tool emits. That version is **4**
+across ANTLR4, antlr-ng, and the in-development ANTLR5, so the deserializer
+spans all three; a grammar is loaded from the tool's `.interp` file (see
+Seed.Interp), which bundles this stream with the token, rule, channel, and
+mode names.
 
 [#adr-003]
 === ADR-003: Idiomatic at the edges, faithful at the core
@@ -105,6 +109,14 @@ and evictable to prevent unbounded growth under adversarial input.
 bottleneck. The cache bound is a deliberate denial-of-service mitigation.
 `:persistent_term` is used only for the static ATN — never for
 per-parse data — because writes to it trigger a global GC.
+
+*Status of implementation:* `Seed.DFACache` (a supervised, bounded ETS
+table owned by `Seed.Application`, keyed per grammar via the ATN's
+`cache_key`) memoizes both the lexer and parser simulators' start-state
+closures and edge reaches. It degrades to recomputation when the table is
+absent, so it never changes results. The static ATN is held as a plain
+immutable term rather than in `:persistent_term` for now; moving it there
+is a future optimization.
 
 [#adr-006]
 === ADR-006: Defer native acceleration (NIF) until measured

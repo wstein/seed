@@ -9,8 +9,11 @@ The ATN simulators memoize their decisions in a single supervised, bounded ETS t
 
 `Seed.DFACache` is a GenServer (started by `Seed.Application`) that owns a
 `:public`, `:named_table` ETS table. Callers use `memoize/2` to read and
-write it directly, with no message round-trip. The lexer caches the two
-expensive results: each mode's start-state closure and each edge's reach.
+write it directly, with no message round-trip. Both the lexer and the
+parser cache the two expensive results: each start-state closure and each
+edge's reach. For the parser these are pure functions of the grammar,
+decision/configs, and lookahead — not the parser state — so the precedence
+filter, which does depend on parser state, stays outside the cache.
 
 ## Why
 

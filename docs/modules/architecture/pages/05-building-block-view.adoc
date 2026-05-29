@@ -45,7 +45,7 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * `Seed.Parser` and `Seed.ParserInterpreter` — the ATN-walking tree builder,
   including left-recursion. Validated against the reference parser's trees.
 * `Seed.DFACache` and `Seed.Application` — a supervised, bounded ETS table
-  memoizing the lexer's ATN decisions
+  memoizing the lexer's and parser's ATN decisions
   (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure speedup.
 * `Seed.Grammar` and `Seed.Interp` — a grammar's runtime metadata (ATN,
   vocabulary, rule/channel/mode names) loaded from an ANTLR `.interp` file,

@@ -23,6 +23,7 @@ defmodule Seed.ParserATNSimulator do
   alias Seed.ATN.SemanticContext.PrecedencePredicate
   alias Seed.ATN.State
   alias Seed.ATN.Transition
+  alias Seed.DFACache
   alias Seed.Diagnostic
   alias Seed.Parser
   alias Seed.Token
@@ -38,7 +39,15 @@ defmodule Seed.ParserATNSimulator do
   def adaptive_predict(%Parser{atn: atn} = parser, decision) do
     decision_state = Map.fetch!(atn.states, Enum.at(atn.decision_to_state, decision))
     outer_context = from_rule_context(atn, parser.frames)
-    start = compute_start_state(atn, decision_state, outer_context, parser)
+
+    # The start-state closure and reach are pure functions of the grammar,
+    # decision/configs, and lookahead — not the parser — so they are cached
+    # by those alone. The precedence filter (below) does depend on the
+    # parser's precedence, so it stays outside the cache.
+    start =
+      DFACache.memoize({atn.cache_key, :parser_start, decision, outer_context}, fn ->
+        compute_start_state(atn, decision_state, outer_context, parser)
+      end)
 
     start =
       if decision_state.state_type == :star_loop_entry and decision_state.is_precedence_decision do
@@ -124,13 +133,21 @@ defmodule Seed.ParserATNSimulator do
 
   defp decide(atn, configs, input, parser) do
     t = TokenStream.la(input, 1)
-    reach = compute_reach_set(atn, configs, t, parser)
+    reach = cached_reach_set(atn, configs, t, parser)
 
     if ParserATNConfigSet.empty?(reach) do
       predict_from(configs, input)
     else
       resolve(atn, reach, input, parser)
     end
+  end
+
+  # Memoizes each edge: the reach for a configuration set on a token type
+  # depends only on the grammar, the set, and the token.
+  defp cached_reach_set(atn, configs, t, parser) do
+    DFACache.memoize({atn.cache_key, :parser_edge, ParserATNConfigSet.configs(configs), t}, fn ->
+      compute_reach_set(atn, configs, t, parser)
+    end)
   end
 
   defp resolve(atn, reach, input, parser) do

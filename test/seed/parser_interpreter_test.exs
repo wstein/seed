@@ -41,6 +41,16 @@ defmodule Seed.ParserInterpreterTest do
              ParserInterpreter.parse(parser_grammar, tokens, 0)
   end
 
+  test "parser predictions are memoized in the DFA cache" do
+    parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    tokens = tokenize("Expr", "expr")
+
+    assert {:ok, _tree} = ParserInterpreter.parse(parser_grammar, tokens, 0)
+
+    keys = :seed_dfa_cache |> :ets.tab2list() |> Enum.map(&elem(&1, 0))
+    assert Enum.any?(keys, &(tuple_size(&1) > 1 and elem(&1, 1) in [:parser_start, :parser_edge]))
+  end
+
   defp tokenize(grammar, name) do
     lexer_grammar = Interp.load!(Path.join(@interp_dir, grammar <> "Lexer.interp"))
     input = @parse_dir |> Path.join("#{name}.input") |> File.read!() |> CharStream.new()
