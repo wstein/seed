@@ -40,19 +40,36 @@ defmodule Seed.ParserInterpreterTest do
     end
   end
 
-  test "parse/3 returns a diagnostic on mismatched input" do
+  test "recovers from a missing token by single-token insertion" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Hello.interp"))
     lexer_grammar = Interp.load!(Path.join(@interp_dir, "HelloLexer.interp"))
-    # "greeting : 'hello' ID EOF" but the input ends after 'hello'.
+    # "greeting : 'hello' ID EOF" but the input ends after 'hello': the ID is
+    # missing. Inserting it lets the trailing EOF still match, so parsing
+    # recovers and reports one diagnostic instead of failing.
     {:ok, tokens} =
       lexer_grammar.atn |> Lexer.new(CharStream.new("hello")) |> TokenStream.from_lexer()
 
-    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, message: message}]} =
+    assert {:error, [%Seed.Diagnostic{code: :missing_token, message: message}]} =
              ParserInterpreter.parse(parser_grammar, tokens, 0)
 
     # The expected token is rendered by its vocabulary name, not its number.
     assert message =~ "ID"
     assert message =~ "<EOF>"
+  end
+
+  test "parse/3 returns a diagnostic on an unrecoverable mismatch" do
+    parser_grammar = Interp.load!(Path.join(@interp_dir, "Hello.interp"))
+    lexer_grammar = Interp.load!(Path.join(@interp_dir, "HelloLexer.interp"))
+    # Empty input: 'hello' is neither present nor recoverable (nothing can be
+    # deleted, and inserting it leaves EOF unable to continue), so the
+    # mismatch is reported as-is.
+    {:ok, tokens} =
+      lexer_grammar.atn |> Lexer.new(CharStream.new("")) |> TokenStream.from_lexer()
+
+    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, message: message}]} =
+             ParserInterpreter.parse(parser_grammar, tokens, 0)
+
+    assert message =~ "hello"
   end
 
   test "recovers from extraneous tokens, accumulating one diagnostic per error" do

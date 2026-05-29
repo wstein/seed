@@ -30,10 +30,7 @@ defmodule Seed.ParserATNSimulator do
   alias Seed.DFACache
   alias Seed.Diagnostic
   alias Seed.Parser
-  alias Seed.Token
   alias Seed.TokenStream
-
-  @eof Token.eof()
 
   @doc """
   Returns the 1-based alternative to take at `decision` given the parser's
@@ -331,15 +328,7 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Symbol matching ----------------------------------------------------
 
-  defp matches?(%Transition{type: :atom, label: label}, t), do: t == label
-  defp matches?(%Transition{type: :range, from: from, to: to}, t), do: t >= from and t <= to
-  defp matches?(%Transition{type: :set, set: set}, t), do: Seed.IntervalSet.member?(set, t)
-
-  defp matches?(%Transition{type: :not_set, set: set}, t),
-    do: t != @eof and not Seed.IntervalSet.member?(set, t)
-
-  defp matches?(%Transition{type: :wildcard}, t), do: t != @eof
-  defp matches?(%Transition{}, _t), do: false
+  defp matches?(transition, t), do: Transition.matches?(transition, t)
 
   defp has_non_epsilon?(%State{transitions: transitions}) do
     Enum.any?(transitions, &(not Transition.epsilon?(&1)))

@@ -56,13 +56,17 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * `Seed.Diagnostic` — a structured lex/parse problem (code, severity,
   position, message); the lexer and parser return `{:ok, _} | {:error,
   [diagnostic]}` at their public boundaries. The parser recovers from
-  extraneous tokens by single-token deletion, accumulating one diagnostic
-  per error.
+  single-token errors — *deletion* of an extraneous token and *insertion* of
+  a missing one — accumulating one diagnostic per error. Insertion is gated
+  by an ATN reachability check (`expects?/3`): a missing token is only
+  fabricated when the real current token can still continue the rule past it,
+  which keeps recovery from looping.
 
 === Planned
 
-* *Fuller error recovery* — single-token insertion and resync (sync) sets,
-  building on the current single-token deletion.
+* *Resync-set recovery* — discarding tokens up to a rule's follow set when
+  single-token deletion/insertion cannot recover, building on the current
+  single-token recovery.
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).

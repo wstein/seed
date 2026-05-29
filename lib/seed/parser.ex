@@ -18,6 +18,8 @@ defmodule Seed.Parser do
   """
 
   alias Seed.ATN
+  alias Seed.ATN.State
+  alias Seed.ATN.Transition
   alias Seed.Diagnostic
   alias Seed.ParserRuleContext
   alias Seed.TerminalNode
@@ -125,10 +127,18 @@ defmodule Seed.Parser do
   @doc """
   Matches the current token against `token_type` and consumes it.
 
-  On a mismatch it attempts single-token deletion: if the *next* token is
-  the expected one, the current token is reported as extraneous and dropped,
-  and parsing continues. Otherwise the error is unrecoverable and is raised
-  with every diagnostic accumulated so far.
+  On a mismatch it attempts, in order, two single-token recoveries before
+  giving up:
+
+    * *deletion* — if the *next* token is the expected one, the current
+      token is reported as extraneous and dropped; and
+    * *insertion* — if the current token can continue the rule once the
+      expected token is supplied, the expected token is reported as missing
+      and parsing proceeds without consuming.
+
+  Insertion is only attempted when the current token is reachable past the
+  expected one (an ATN check, `expects?/3`), which keeps it from looping.
+  An unrecoverable mismatch is raised with every accumulated diagnostic.
   """
   @spec match(t(), integer()) :: t()
   def match(%__MODULE__{} = parser, token_type) do
@@ -140,6 +150,9 @@ defmodule Seed.Parser do
 
       TokenStream.la(parser.input, 2) == token_type ->
         delete_extraneous_token(parser, token)
+
+      can_insert?(parser, token_type, token.type) ->
+        insert_missing_token(parser, token, token_type)
 
       true ->
         fail(parser, token_mismatch(parser, token, token_type))
@@ -185,6 +198,77 @@ defmodule Seed.Parser do
     |> add_diagnostic(diagnostic)
     |> Map.update!(:input, &TokenStream.consume/1)
     |> consume()
+  end
+
+  # Single-token insertion is viable when the grammar has a transition for
+  # the expected token out of the current state and, past that token, the
+  # *current* token can still continue the rule. The second check
+  # (`expects?/3`) is what keeps insertion from looping: a fabricated token
+  # is only accepted when it lets real input make progress.
+  defp can_insert?(parser, expected_type, current_type) do
+    case next_state_after(parser, expected_type) do
+      nil -> false
+      next -> expects?(parser.atn, next, current_type)
+    end
+  end
+
+  # The target of the (single) consuming transition out of `parser.state`
+  # that matches `expected_type`, or `nil` when none does.
+  defp next_state_after(parser, expected_type) do
+    parser.atn.states
+    |> Map.fetch!(parser.state)
+    |> Map.fetch!(:transitions)
+    |> Enum.find_value(fn transition ->
+      if not Transition.epsilon?(transition) and Transition.matches?(transition, expected_type) do
+        transition.target
+      end
+    end)
+  end
+
+  # Reports the expected token as missing and continues *without* consuming,
+  # so the current (real) token is matched next.
+  defp insert_missing_token(parser, token, expected_type) do
+    diagnostic =
+      Diagnostic.error(
+        :missing_token,
+        "missing #{Vocabulary.display_name(parser.vocabulary, expected_type)} at #{describe(token)}",
+        line: token.line,
+        column: token.column
+      )
+
+    add_diagnostic(parser, diagnostic)
+  end
+
+  # Walks the epsilon-closure of `state` (epsilon, rule, action, predicate,
+  # precedence edges) and returns `true` when any reachable *consuming*
+  # transition matches `symbol`. Rule-stop states and already-visited states
+  # terminate the walk, bounding it to the rule's local reachability.
+  defp expects?(atn, state_number, symbol) do
+    expects?(atn, state_number, symbol, %{})
+  end
+
+  defp expects?(atn, state_number, symbol, visited) do
+    if Map.has_key?(visited, state_number) do
+      false
+    else
+      visited = Map.put(visited, state_number, true)
+
+      case Map.fetch!(atn.states, state_number) do
+        %State{state_type: :rule_stop} ->
+          false
+
+        %State{transitions: transitions} ->
+          Enum.any?(transitions, &transition_expects?(atn, &1, symbol, visited))
+      end
+    end
+  end
+
+  defp transition_expects?(atn, transition, symbol, visited) do
+    if Transition.epsilon?(transition) do
+      expects?(atn, transition.target, symbol, visited)
+    else
+      Transition.matches?(transition, symbol)
+    end
   end
 
   defp token_mismatch(parser, token, token_type) do

@@ -49,13 +49,13 @@ Early development. The implemented and verified foundation is:
   `Seed.ParserInterpreter.parse/3` return `{:ok, result} | {:error,
   [Seed.Diagnostic.t()]}`; a diagnostic carries a machine-readable code,
   severity, and source position, and mismatch messages name the expected
-  token from the grammar's vocabulary. The parser recovers from extraneous
-  tokens (single-token deletion), so one parse reports a diagnostic per
-  error rather than stopping at the first.
+  token from the grammar's vocabulary. The parser recovers from single-token
+  errors — deleting an extraneous token or inserting a missing one (gated by
+  an ATN reachability check so it cannot loop) — so one parse reports a
+  diagnostic per error rather than stopping at the first.
 
-Fuller error recovery (token insertion and resync sets) and the Elixir
-code-generation target are the next milestones — see the architecture docs
-for the full roadmap.
+Resync-set recovery and the Elixir code-generation target are the next
+milestones — see the architecture docs for the full roadmap.
 
 ## Design principles
 

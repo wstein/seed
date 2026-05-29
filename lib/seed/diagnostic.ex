@@ -16,6 +16,7 @@ defmodule Seed.Diagnostic do
           :token_mismatch
           | :input_mismatch
           | :extraneous_input
+          | :missing_token
           | :no_viable_alternative
           | :no_viable_token
 

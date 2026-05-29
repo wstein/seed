@@ -24,6 +24,8 @@ defmodule Seed.ATN.Transition do
 
   alias Seed.IntervalSet
 
+  @eof Seed.Token.eof()
+
   @type transition_type ::
           :epsilon
           | :range
@@ -98,6 +100,27 @@ defmodule Seed.ATN.Transition do
   @doc "Returns `true` when the transition consumes no input symbol."
   @spec epsilon?(t()) :: boolean()
   def epsilon?(%__MODULE__{type: type}), do: type in @epsilon_types
+
+  @doc """
+  Returns `true` when this consuming transition matches input `symbol`.
+
+  Epsilon-style transitions never match. Wildcard and not-set match any
+  symbol except EOF.
+  """
+  @spec matches?(t(), integer()) :: boolean()
+  def matches?(%__MODULE__{type: :atom, label: label}, symbol), do: symbol == label
+
+  def matches?(%__MODULE__{type: :range, from: from, to: to}, symbol),
+    do: symbol >= from and symbol <= to
+
+  def matches?(%__MODULE__{type: :set, set: set}, symbol), do: IntervalSet.member?(set, symbol)
+
+  def matches?(%__MODULE__{type: :not_set, set: set}, symbol) do
+    symbol != @eof and not IntervalSet.member?(set, symbol)
+  end
+
+  def matches?(%__MODULE__{type: :wildcard}, symbol), do: symbol != @eof
+  def matches?(%__MODULE__{}, _symbol), do: false
 
   @doc """
   Returns the symbols the transition matches as an interval set, or `nil`.

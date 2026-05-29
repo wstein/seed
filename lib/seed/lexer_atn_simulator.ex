@@ -35,7 +35,6 @@ defmodule Seed.LexerATNSimulator do
 
   alias Seed.CharStream
   alias Seed.DFACache
-  alias Seed.IntervalSet
 
   @eof Seed.Token.eof()
 
@@ -351,19 +350,7 @@ defmodule Seed.LexerATNSimulator do
 
   # --- Symbol matching ----------------------------------------------------
 
-  defp matches?(%Transition{type: :atom, label: label}, symbol), do: symbol == label
-
-  defp matches?(%Transition{type: :range, from: from, to: to}, symbol),
-    do: symbol >= from and symbol <= to
-
-  defp matches?(%Transition{type: :set, set: set}, symbol), do: IntervalSet.member?(set, symbol)
-
-  defp matches?(%Transition{type: :not_set, set: set}, symbol) do
-    symbol != @eof and not IntervalSet.member?(set, symbol)
-  end
-
-  defp matches?(%Transition{type: :wildcard}, symbol), do: symbol != @eof
-  defp matches?(%Transition{}, _symbol), do: false
+  defp matches?(transition, symbol), do: Transition.matches?(transition, symbol)
 
   defp consuming?(%State{transitions: transitions}) do
     Enum.any?(transitions, &(not Transition.epsilon?(&1)))
