@@ -84,6 +84,21 @@ defmodule Seed.ParserInterpreterTest do
     assert Enum.map(diagnostics, & &1.code) == [:extraneous_input, :extraneous_input]
   end
 
+  test "resynchronizes past unrecoverable input to the rule's follow set" do
+    parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
+    # First statement: after "x = 1" the ';' is missing and the stray "2" can
+    # neither be deleted nor have ';' inserted before it, so the parser enters
+    # panic mode and discards "2 ;" up to the next statement's leading ID.
+    # The second statement ("y y = 2 ;") then parses, recovering its own
+    # extraneous ID by single-token deletion — proving the walk continued.
+    {:ok, tokens} =
+      lexer.atn |> Lexer.new(CharStream.new("x = 1 2 ; y y = 2 ;")) |> TokenStream.from_lexer()
+
+    assert {:error, diagnostics} = ParserInterpreter.parse(parser, tokens, 0)
+    assert Enum.map(diagnostics, & &1.code) == [:token_mismatch, :extraneous_input]
+  end
+
   test "parser predictions are memoized in the DFA cache" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     tokens = tokenize("Expr", "expr")

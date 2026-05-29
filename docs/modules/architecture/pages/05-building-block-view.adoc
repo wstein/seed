@@ -55,18 +55,27 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   so a grammar can be parsed at run time with no code generation.
 * `Seed.Diagnostic` — a structured lex/parse problem (code, severity,
   position, message); the lexer and parser return `{:ok, _} | {:error,
-  [diagnostic]}` at their public boundaries. The parser recovers from
-  single-token errors — *deletion* of an extraneous token and *insertion* of
-  a missing one — accumulating one diagnostic per error. Insertion is gated
-  by an ATN reachability check (`expects?/3`): a missing token is only
-  fabricated when the real current token can still continue the rule past it,
-  which keeps recovery from looping.
+  [diagnostic]}` at their public boundaries. The parser recovers from errors
+  at two levels, accumulating one diagnostic each:
++
+--
+** *Single-token* — *deletion* of an extraneous token and *insertion* of a
+   missing one. Insertion is gated by an ATN reachability check
+   (`expects?/3`): a missing token is only fabricated when the real current
+   token can still continue the rule past it, which keeps recovery from
+   looping.
+** *Panic-mode resync* (`Seed.Parser.sync/1`) — when no single-token
+   recovery applies, the parser discards input up to the current rule's
+   follow set (the resynchronization set, computed from the active frames
+   with `expects?/3`) and unwinds to that rule's stop state. Every recovery
+   either consumes a token or pops a rule, so it always makes progress.
+--
 
 === Planned
 
-* *Resync-set recovery* — discarding tokens up to a rule's follow set when
-  single-token deletion/insertion cannot recover, building on the current
-  single-token recovery.
+* *Prediction-time resync* — recovery for a no-viable-alternative at a
+  decision (today a hard parse error), complementing the match-time resync
+  above.
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).

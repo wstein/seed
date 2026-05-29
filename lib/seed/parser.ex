@@ -138,7 +138,8 @@ defmodule Seed.Parser do
 
   Insertion is only attempted when the current token is reachable past the
   expected one (an ATN check, `expects?/3`), which keeps it from looping.
-  An unrecoverable mismatch is raised with every accumulated diagnostic.
+  When neither single-token recovery applies, the parser is thrown back for
+  panic-mode resynchronization (see `sync/1`).
   """
   @spec match(t(), integer()) :: t()
   def match(%__MODULE__{} = parser, token_type) do
@@ -155,7 +156,7 @@ defmodule Seed.Parser do
         insert_missing_token(parser, token, token_type)
 
       true ->
-        fail(parser, token_mismatch(parser, token, token_type))
+        throw_resync(parser, token_mismatch(parser, token, token_type))
     end
   end
 
@@ -167,7 +168,7 @@ defmodule Seed.Parser do
     if token.type > 0 do
       consume(parser)
     else
-      fail(
+      throw_resync(
         parser,
         Diagnostic.error(
           :input_mismatch,
@@ -280,10 +281,47 @@ defmodule Seed.Parser do
     )
   end
 
-  # Raises with the accumulated diagnostics plus the unrecoverable one.
-  @spec fail(t(), Diagnostic.t()) :: no_return()
-  defp fail(parser, diagnostic) do
-    raise Error, diagnostics: parser.diagnostics ++ [diagnostic]
+  # Records the unrecoverable diagnostic and throws the parser back to the
+  # interpreter for panic-mode resynchronization (`sync/1`).
+  @spec throw_resync(t(), Diagnostic.t()) :: no_return()
+  defp throw_resync(parser, diagnostic) do
+    throw({:seed_resync, add_diagnostic(parser, diagnostic)})
+  end
+
+  @doc """
+  Panic-mode recovery: discards input up to the current rule's follow set,
+  then positions the parser at that rule's stop state so the walk unwinds to
+  the caller.
+
+  The follow (resynchronization) set is the union, over the active rule
+  frames, of the tokens that can appear after each rule — computed from the
+  ATN with `expects?/3`. Tokens are dropped until the current one is in that
+  set or end-of-input is reached. Because every recovery either consumes a
+  token or pops a rule, resynchronization always makes progress.
+  """
+  @spec sync(t()) :: t()
+  def sync(%__MODULE__{} = parser) do
+    parser = consume_until_recovery(parser)
+    %{parser | state: Enum.at(parser.atn.rule_to_stop_state, current_context(parser).rule_index)}
+  end
+
+  defp consume_until_recovery(parser) do
+    if in_recovery_set?(parser, TokenStream.la(parser.input, 1)) do
+      parser
+    else
+      parser |> Map.update!(:input, &TokenStream.consume/1) |> consume_until_recovery()
+    end
+  end
+
+  defp in_recovery_set?(parser, symbol) do
+    symbol == @eof or Enum.any?(parser.frames, &recovers_at?(parser.atn, &1, symbol))
+  end
+
+  defp recovers_at?(_atn, %ParserRuleContext{invoking_state: -1}, _symbol), do: false
+
+  defp recovers_at?(atn, %ParserRuleContext{invoking_state: invoking}, symbol) do
+    follow = hd(Map.fetch!(atn.states, invoking).transitions).follow_state
+    expects?(atn, follow, symbol)
   end
 
   defp describe(%Token{type: @eof}), do: "<EOF>"

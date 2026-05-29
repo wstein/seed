@@ -71,6 +71,16 @@ defmodule Seed.ParserInterpreter do
   end
 
   defp run(parser, atn, push_states) do
+    do_run(parser, atn, push_states)
+  catch
+    # An unrecoverable single-token error throws the parser back here for
+    # panic-mode recovery: resynchronize to the current rule's follow set,
+    # then resume the walk (which unwinds via the rule's stop state).
+    {:seed_resync, recovered} ->
+      recovered |> Parser.sync() |> run(atn, push_states)
+  end
+
+  defp do_run(parser, atn, push_states) do
     state = Map.fetch!(atn.states, parser.state)
 
     case state.state_type do
@@ -80,7 +90,7 @@ defmodule Seed.ParserInterpreter do
       _other ->
         parser
         |> visit_state(atn, state, push_states)
-        |> run(atn, push_states)
+        |> do_run(atn, push_states)
     end
   end
 
