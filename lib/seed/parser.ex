@@ -50,8 +50,20 @@ defmodule Seed.Parser do
           precedence_stack: [integer()],
           parent_context_stack: [integer()],
           diagnostics: [Diagnostic.t()],
-          sempred: sempred()
+          sempred: sempred(),
+          error_mode: error_mode()
         }
+
+  @typedoc """
+  How the parser reacts to a syntax error.
+
+    * `:recover` (default) — accumulate a diagnostic and recover (single-token
+      deletion/insertion or panic-mode resynchronization), so one parse
+      reports every error and still yields a tree.
+    * `:bail` — abort at the first error with that single diagnostic and no
+      tree, the equivalent of the reference `BailErrorStrategy`.
+  """
+  @type error_mode :: :recover | :bail
 
   @enforce_keys [:atn, :input]
   defstruct atn: nil,
@@ -62,7 +74,8 @@ defmodule Seed.Parser do
             precedence_stack: [],
             parent_context_stack: [],
             diagnostics: [],
-            sempred: nil
+            sempred: nil,
+            error_mode: :recover
 
   @doc """
   Builds a parser over `atn` reading `input`.
@@ -160,6 +173,11 @@ defmodule Seed.Parser do
       token.type == token_type ->
         consume(parser)
 
+      # In bail mode a mismatch aborts immediately, without single-token
+      # recovery.
+      parser.error_mode == :bail ->
+        fail(parser, token_mismatch(parser, token, token_type))
+
       TokenStream.la(parser.input, 2) == token_type ->
         delete_extraneous_token(parser, token)
 
@@ -167,7 +185,7 @@ defmodule Seed.Parser do
         insert_missing_token(parser, token, token_type)
 
       true ->
-        throw_resync(parser, token_mismatch(parser, token, token_type))
+        fail(parser, token_mismatch(parser, token, token_type))
     end
   end
 
@@ -179,7 +197,7 @@ defmodule Seed.Parser do
     if token.type > 0 do
       consume(parser)
     else
-      throw_resync(
+      fail(
         parser,
         Diagnostic.error(
           :input_mismatch,
@@ -299,10 +317,15 @@ defmodule Seed.Parser do
     )
   end
 
-  # Records the unrecoverable diagnostic and throws the parser back to the
+  # Reports an unrecoverable error. In `:bail` mode it aborts the parse with
+  # the single diagnostic; otherwise it throws the parser back to the
   # interpreter for panic-mode resynchronization (`sync/1`).
-  @spec throw_resync(t(), Diagnostic.t()) :: no_return()
-  defp throw_resync(parser, diagnostic) do
+  @spec fail(t(), Diagnostic.t()) :: no_return()
+  defp fail(%__MODULE__{error_mode: :bail}, diagnostic) do
+    throw({:seed_bail, diagnostic})
+  end
+
+  defp fail(parser, diagnostic) do
     throw({:seed_resync, add_diagnostic(parser, diagnostic)})
   end
 

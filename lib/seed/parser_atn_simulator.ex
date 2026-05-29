@@ -218,28 +218,29 @@ defmodule Seed.ParserATNSimulator do
     end
   end
 
-  # No alternative can consume the current token. Prefer an alternative that
-  # has already reached the decision's rule-stop state (it accepts here
-  # without consuming) — the lowest such, ANTLR's ambiguity convention. This
-  # is what lets a decision exit correctly under an empty outer context, e.g.
-  # the precedence loop of a left-recursive rule parsed as the start rule,
-  # where there is no caller follow to fall into and the exit alternative
-  # lands directly on rule-stop. With a non-empty context the exit instead
-  # lands on the caller's follow (a non-stop state), so fall back to the
-  # lowest alternative present.
   # No alternative can consume the next token. Prefer an alternative that has
   # reached the decision's rule-stop state — it accepts here without consuming
   # (the lowest such, ANTLR's ambiguity convention); this is what lets a
   # decision exit under an empty outer context, e.g. the precedence loop of a
   # left-recursive rule parsed as the start rule. With no accepting
-  # alternative the input is genuinely unparseable at this decision, so throw
-  # the parser back to the interpreter for panic-mode resynchronization (the
-  # same channel as a match failure), reporting a no-viable-alternative.
+  # alternative the input is genuinely unparseable at this decision, so report
+  # a no-viable-alternative — bailing in `:bail` mode, otherwise throwing the
+  # parser back to the interpreter for panic-mode resynchronization (the same
+  # channel as a match failure).
   defp predict_from(atn, configs, input, parser) do
     case stop_state_alts(atn, ParserATNConfigSet.configs(configs)) do
-      [] -> throw({:seed_resync, Parser.add_diagnostic(parser, no_viable_alternative(input))})
+      [] -> fail_prediction(parser, no_viable_alternative(input))
       alts -> Enum.min(alts)
     end
+  end
+
+  @spec fail_prediction(Parser.t(), Diagnostic.t()) :: no_return()
+  defp fail_prediction(%Parser{error_mode: :bail}, diagnostic) do
+    throw({:seed_bail, diagnostic})
+  end
+
+  defp fail_prediction(parser, diagnostic) do
+    throw({:seed_resync, Parser.add_diagnostic(parser, diagnostic)})
   end
 
   defp stop_state_alts(atn, configs) do

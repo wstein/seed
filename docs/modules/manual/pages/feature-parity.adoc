@@ -111,7 +111,7 @@ N/A by design.
 | Single-token deletion and insertion | ✅ | Insertion gated by an ATN reachability check so it cannot loop.
 | Panic-mode resynchronization (follow sets) | ✅ | For both a token mismatch and a no-viable-alternative decision.
 | Error nodes in the recovered tree | ✅ | Including a fabricated `<missing …>` token for an insertion.
-| Pluggable error strategy (e.g. `BailErrorStrategy`) | ✗ | A single built-in strategy (see Roadmap E).
+| Error strategy: recover (default) or bail | ✅ | `Seed.ParserInterpreter.parse/4`'s `:bail` option aborts at the first error with one diagnostic and no tree, the `BailErrorStrategy` equivalent; the default recovers. A fully pluggable strategy object is not provided.
 | Error listeners | ⊘ | By design — structured diagnostics-as-values serve the same tooling purpose (ADR-003).
 |===
 
@@ -164,8 +164,8 @@ shippable behind the project's quality gate (`make verify`).
 | The main remaining performance gap (correctness is already validated).
 
 | E. Tooling parity
-| `TokenStreamRewriter`, tree XPath, tree pattern matching, and a pluggable
-  error strategy (`BailErrorStrategy`).
+| `TokenStreamRewriter`, tree XPath, tree pattern matching, and a bail error
+  strategy (`Seed.ParserInterpreter.parse/4`'s `:bail` — done).
 | Convenience APIs that round out runtime parity.
 |===
 

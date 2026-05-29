@@ -37,9 +37,13 @@ defmodule Seed.ParserInterpreter do
 
     * `:sempred` — a `t:Seed.Parser.sempred/0` evaluating grammar semantic
       predicates `{...}?`; defaults to treating every predicate as satisfied.
+    * `:bail` — when `true`, abort at the first error (the reference
+      `BailErrorStrategy`) and return `{:error, [diagnostic]}` with no tree,
+      instead of recovering. Defaults to `false`.
   """
   @spec parse(Grammar.t() | ATN.t(), TokenStream.t(), non_neg_integer(), keyword()) ::
           {:ok, ParserRuleContext.t()}
+          | {:error, [Diagnostic.t()]}
           | {:error, [Diagnostic.t()], ParserRuleContext.t()}
   def parse(grammar_or_atn, token_stream, start_rule_index, opts \\ [])
 
@@ -63,6 +67,9 @@ defmodule Seed.ParserInterpreter do
       [] -> {:ok, tree}
       diagnostics -> {:error, diagnostics, tree}
     end
+  catch
+    # Bail mode aborts at the first error with that single diagnostic.
+    {:seed_bail, diagnostic} -> {:error, [diagnostic]}
   end
 
   defp build_tree(atn, token_stream, start_rule_index, vocabulary, opts) do
@@ -71,6 +78,9 @@ defmodule Seed.ParserInterpreter do
         nil -> Parser.new(atn, token_stream, vocabulary)
         sempred -> Parser.new(atn, token_stream, vocabulary, sempred)
       end
+
+    error_mode = if Keyword.get(opts, :bail, false), do: :bail, else: :recover
+    parser = %{parser | error_mode: error_mode}
 
     start_number = Enum.at(atn.rule_to_start_state, start_rule_index)
     start_state = Map.fetch!(atn.states, start_number)

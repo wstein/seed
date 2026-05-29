@@ -190,6 +190,21 @@ defmodule Seed.ParserInterpreterTest do
     assert Trees.to_string_tree(tree, parser) == "(prog a b <EOF>)"
   end
 
+  test "bail mode aborts at the first error without recovering" do
+    parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
+
+    {:ok, tokens} =
+      lexer.atn |> Lexer.new(CharStream.new("x x = 1 ; y y = 2 ;")) |> TokenStream.from_lexer()
+
+    # Recovery reports a diagnostic per error and still returns a tree.
+    assert {:error, recovered, _tree} = ParserInterpreter.parse(parser, tokens, 0)
+    assert length(recovered) == 2
+
+    # Bail mode stops at the first error: one diagnostic, no tree.
+    assert {:error, [%Seed.Diagnostic{}]} = ParserInterpreter.parse(parser, tokens, 0, bail: true)
+  end
+
   test "parser predictions are memoized in the DFA cache" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     tokens = tokenize("Expr", "expr")
