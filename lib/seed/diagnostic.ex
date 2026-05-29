@@ -15,6 +15,7 @@ defmodule Seed.Diagnostic do
   @type code ::
           :token_mismatch
           | :input_mismatch
+          | :extraneous_input
           | :no_viable_alternative
           | :no_viable_token
 

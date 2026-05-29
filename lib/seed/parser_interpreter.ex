@@ -44,9 +44,14 @@ defmodule Seed.ParserInterpreter do
   end
 
   defp do_parse(atn, token_stream, start_rule_index, vocabulary) do
-    {:ok, build_tree(atn, token_stream, start_rule_index, vocabulary)}
+    {tree, parser} = build_tree(atn, token_stream, start_rule_index, vocabulary)
+
+    case parser.diagnostics do
+      [] -> {:ok, tree}
+      diagnostics -> {:error, diagnostics}
+    end
   rescue
-    error in Parser.Error -> {:error, [error.diagnostic]}
+    error in Parser.Error -> {:error, error.diagnostics}
   end
 
   defp build_tree(atn, token_stream, start_rule_index, vocabulary) do
@@ -81,9 +86,9 @@ defmodule Seed.ParserInterpreter do
 
   defp at_rule_stop(parser, atn, state, push_states) do
     if Parser.current_context(parser).invoking_state == -1 do
-      # The start rule's context is the finished tree; stack cleanup would
-      # only mutate the parser we are about to discard.
-      Parser.current_context(parser)
+      # The start rule's context is the finished tree; return it with the
+      # parser so accumulated diagnostics can be surfaced.
+      {Parser.current_context(parser), parser}
     else
       parser |> visit_rule_stop_state(atn, state) |> run(atn, push_states)
     end

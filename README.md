@@ -44,12 +44,15 @@ Early development. The implemented and verified foundation is:
 - **Grammar loading** — `Seed.Interp` loads an ANTLR `.interp` file into a
   `Seed.Grammar` (ATN + vocabulary + rule/channel/mode names), so a grammar
   can be lexed and parsed at run time with no code generation.
-- **Diagnostics** — `Seed.Lexer.tokenize/1` and `Seed.ParserInterpreter.parse/3`
-  return `{:ok, result} | {:error, [Seed.Diagnostic.t()]}`; a diagnostic
-  carries a machine-readable code, severity, and source position, and
-  mismatch messages name the expected token from the grammar's vocabulary.
+- **Diagnostics & recovery** — `Seed.Lexer.tokenize/1` and
+  `Seed.ParserInterpreter.parse/3` return `{:ok, result} | {:error,
+  [Seed.Diagnostic.t()]}`; a diagnostic carries a machine-readable code,
+  severity, and source position, and mismatch messages name the expected
+  token from the grammar's vocabulary. The parser recovers from extraneous
+  tokens (single-token deletion), so one parse reports a diagnostic per
+  error rather than stopping at the first.
 
-Error recovery (accumulating multiple diagnostics) and the Elixir
+Fuller error recovery (token insertion and resync sets) and the Elixir
 code-generation target are the next milestones — see the architecture docs
 for the full roadmap.
 

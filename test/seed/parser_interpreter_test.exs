@@ -52,6 +52,18 @@ defmodule Seed.ParserInterpreterTest do
     assert message =~ "<EOF>"
   end
 
+  test "recovers from extraneous tokens, accumulating one diagnostic per error" do
+    parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
+    # Two stray identifiers before '='; each is recovered by single-token
+    # deletion, so parsing continues and both errors are reported.
+    {:ok, tokens} =
+      lexer.atn |> Lexer.new(CharStream.new("x x = 1 ; y y = 2 ;")) |> TokenStream.from_lexer()
+
+    assert {:error, diagnostics} = ParserInterpreter.parse(parser, tokens, 0)
+    assert Enum.map(diagnostics, & &1.code) == [:extraneous_input, :extraneous_input]
+  end
+
   test "parser predictions are memoized in the DFA cache" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     tokens = tokenize("Expr", "expr")

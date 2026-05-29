@@ -34,7 +34,8 @@ defmodule Seed.Parser do
           state: integer(),
           frames: [ParserRuleContext.t()],
           precedence_stack: [integer()],
-          parent_context_stack: [integer()]
+          parent_context_stack: [integer()],
+          diagnostics: [Diagnostic.t()]
         }
 
   @enforce_keys [:atn, :input]
@@ -44,14 +45,21 @@ defmodule Seed.Parser do
             state: -1,
             frames: [],
             precedence_stack: [],
-            parent_context_stack: []
+            parent_context_stack: [],
+            diagnostics: []
 
   defmodule Error do
-    @moduledoc "Raised on a parse error; carries a `Seed.Diagnostic`."
-    defexception [:diagnostic]
+    @moduledoc """
+    Raised on an unrecoverable parse error.
+
+    Carries every `Seed.Diagnostic` accumulated so far (recovered errors
+    plus the final, unrecoverable one), so the public boundary can report
+    them all.
+    """
+    defexception [:diagnostics]
 
     @impl true
-    def message(%__MODULE__{diagnostic: diagnostic}), do: diagnostic.message
+    def message(%__MODULE__{diagnostics: [first | _]}), do: first.message
   end
 
   @doc """
@@ -114,22 +122,27 @@ defmodule Seed.Parser do
     %{parser | frames: [wrapper | rest]}
   end
 
-  @doc "Matches the current token against `token_type` and consumes it."
+  @doc """
+  Matches the current token against `token_type` and consumes it.
+
+  On a mismatch it attempts single-token deletion: if the *next* token is
+  the expected one, the current token is reported as extraneous and dropped,
+  and parsing continues. Otherwise the error is unrecoverable and is raised
+  with every diagnostic accumulated so far.
+  """
   @spec match(t(), integer()) :: t()
   def match(%__MODULE__{} = parser, token_type) do
     token = TokenStream.lt(parser.input, 1)
 
-    if token.type == token_type do
-      consume(parser)
-    else
-      raise Error,
-        diagnostic:
-          Diagnostic.error(
-            :token_mismatch,
-            "mismatched input #{describe(token)}, expected #{Vocabulary.display_name(parser.vocabulary, token_type)}",
-            line: token.line,
-            column: token.column
-          )
+    cond do
+      token.type == token_type ->
+        consume(parser)
+
+      TokenStream.la(parser.input, 2) == token_type ->
+        delete_extraneous_token(parser, token)
+
+      true ->
+        fail(parser, token_mismatch(parser, token, token_type))
     end
   end
 
@@ -141,15 +154,52 @@ defmodule Seed.Parser do
     if token.type > 0 do
       consume(parser)
     else
-      raise Error,
-        diagnostic:
-          Diagnostic.error(
-            :input_mismatch,
-            "mismatched input #{describe(token)}, expected any token",
-            line: token.line,
-            column: token.column
-          )
+      fail(
+        parser,
+        Diagnostic.error(
+          :input_mismatch,
+          "mismatched input #{describe(token)}, expected any token",
+          line: token.line,
+          column: token.column
+        )
+      )
     end
+  end
+
+  @doc "Records `diagnostic` (a recovered error) on the parser."
+  @spec add_diagnostic(t(), Diagnostic.t()) :: t()
+  def add_diagnostic(%__MODULE__{} = parser, %Diagnostic{} = diagnostic) do
+    %{parser | diagnostics: parser.diagnostics ++ [diagnostic]}
+  end
+
+  # Reports the current token as extraneous, drops it, and matches the
+  # expected token that follows.
+  defp delete_extraneous_token(parser, token) do
+    diagnostic =
+      Diagnostic.error(:extraneous_input, "extraneous input #{describe(token)}",
+        line: token.line,
+        column: token.column
+      )
+
+    parser
+    |> add_diagnostic(diagnostic)
+    |> Map.update!(:input, &TokenStream.consume/1)
+    |> consume()
+  end
+
+  defp token_mismatch(parser, token, token_type) do
+    Diagnostic.error(
+      :token_mismatch,
+      "mismatched input #{describe(token)}, expected #{Vocabulary.display_name(parser.vocabulary, token_type)}",
+      line: token.line,
+      column: token.column
+    )
+  end
+
+  # Raises with the accumulated diagnostics plus the unrecoverable one.
+  @spec fail(t(), Diagnostic.t()) :: no_return()
+  defp fail(parser, diagnostic) do
+    raise Error, diagnostics: parser.diagnostics ++ [diagnostic]
   end
 
   defp describe(%Token{type: @eof}), do: "<EOF>"

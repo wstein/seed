@@ -140,7 +140,7 @@ defmodule Seed.ParserATNSimulator do
     reach = cached_reach_set(atn, configs, t, parser)
 
     if ParserATNConfigSet.empty?(reach) do
-      predict_from(configs, input)
+      predict_from(configs, input, parser)
     else
       resolve(atn, reach, input, parser)
     end
@@ -165,9 +165,9 @@ defmodule Seed.ParserATNSimulator do
     end
   end
 
-  defp predict_from(configs, input) do
+  defp predict_from(configs, input, parser) do
     case ParserATNConfigSet.configs(configs) do
-      [] -> raise Parser.Error, diagnostic: no_viable_alternative(input)
+      [] -> raise Parser.Error, diagnostics: parser.diagnostics ++ [no_viable_alternative(input)]
       reach_configs -> PredictionMode.min_alt(reach_configs)
     end
   end

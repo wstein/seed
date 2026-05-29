@@ -33,6 +33,14 @@ grammar is supplied, the parser carries its `Seed.Vocabulary`, so mismatch
 messages name the expected token (`expected ID`) instead of its numeric
 type; without a vocabulary they fall back to the number.
 
+The parser accumulates diagnostics on the `Seed.Parser` struct and recovers
+where it can: single-token deletion drops an extraneous token when the next
+one is the expected one, so a parse reports a diagnostic per error rather
+than stopping at the first. An unrecoverable error raises with the full
+accumulated list (`Seed.Parser.Error` carries `:diagnostics`); a parse that
+recovered throughout still returns `{:error, diagnostics}` because the input
+was not well-formed. Token insertion and resync sets are the next steps.
+
 ## Links
 
 - [[Idiomatic Facade Over Faithful Core]] - Error tuples are part of the idiomatic facade over the raising core.

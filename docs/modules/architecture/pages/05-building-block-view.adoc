@@ -55,11 +55,14 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   so a grammar can be parsed at run time with no code generation.
 * `Seed.Diagnostic` — a structured lex/parse problem (code, severity,
   position, message); the lexer and parser return `{:ok, _} | {:error,
-  [diagnostic]}` at their public boundaries.
+  [diagnostic]}` at their public boundaries. The parser recovers from
+  extraneous tokens by single-token deletion, accumulating one diagnostic
+  per error.
 
 === Planned
 
-* *Error recovery* — accumulate multiple diagnostics per parse.
+* *Fuller error recovery* — single-token insertion and resync (sync) sets,
+  building on the current single-token deletion.
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).
