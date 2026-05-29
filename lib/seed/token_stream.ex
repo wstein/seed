@@ -40,12 +40,13 @@ defmodule Seed.TokenStream do
   @doc """
   Builds a token stream by running `lexer` to completion.
 
-  Tokenizes the lexer's entire input (the resulting list ends with EOF) and
-  buffers it, giving a lexer-to-parser pipeline. Skipped tokens never reach
-  the stream because the lexer drops them while matching.
+  Returns `{:ok, stream}` over the lexer's tokens (skipped tokens never
+  reach the stream), or `{:error, [Seed.Diagnostic.t()]}` if lexing fails.
   """
-  @spec from_lexer(Seed.Lexer.t()) :: t()
-  def from_lexer(%Seed.Lexer{} = lexer), do: lexer |> Seed.Lexer.tokenize() |> new()
+  @spec from_lexer(Seed.Lexer.t()) :: {:ok, t()} | {:error, [Seed.Diagnostic.t()]}
+  def from_lexer(%Seed.Lexer{} = lexer) do
+    with {:ok, tokens} <- Seed.Lexer.tokenize(lexer), do: {:ok, new(tokens)}
+  end
 
   @doc "The current 0-based position in the stream."
   @spec index(t()) :: non_neg_integer()

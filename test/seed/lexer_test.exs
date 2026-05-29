@@ -35,7 +35,7 @@ defmodule Seed.LexerTest do
 
   test "TokenStream.from_lexer/1 builds a parser-ready stream" do
     # hello.input is "hello world\nhello abc" -> hello, world, hello, abc, EOF
-    stream = "hello" |> build_lexer() |> TokenStream.from_lexer()
+    assert {:ok, stream} = "hello" |> build_lexer() |> TokenStream.from_lexer()
 
     assert TokenStream.size(stream) == 5
     assert TokenStream.la(stream, 1) == 1
@@ -43,7 +43,17 @@ defmodule Seed.LexerTest do
     assert TokenStream.get(stream, TokenStream.size(stream) - 1).type == Token.eof()
   end
 
-  defp tokenize(name), do: name |> build_lexer() |> Lexer.tokenize()
+  test "tokenize/1 returns a diagnostic for an unmatched character" do
+    lexer = Lexer.new(load_lexer_atn("hello"), CharStream.new("@"))
+
+    assert {:error, [%Seed.Diagnostic{code: :no_viable_token, severity: :error}]} =
+             Lexer.tokenize(lexer)
+  end
+
+  defp tokenize(name) do
+    {:ok, tokens} = name |> build_lexer() |> Lexer.tokenize()
+    tokens
+  end
 
   defp build_lexer(name) do
     Lexer.new(load_lexer_atn(name), load_input(name))

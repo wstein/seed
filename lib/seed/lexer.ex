@@ -18,6 +18,7 @@ defmodule Seed.Lexer do
   alias Seed.ATN
   alias Seed.ATN.{LexerAction, LexerActionExecutor}
   alias Seed.CharStream
+  alias Seed.Diagnostic
   alias Seed.LexerATNSimulator
   alias Seed.Token
 
@@ -58,8 +59,11 @@ defmodule Seed.Lexer do
             token_start_column: 0
 
   defmodule Error do
-    @moduledoc "Raised when the lexer cannot match any token at a position."
-    defexception [:message]
+    @moduledoc "Raised when the lexer cannot match any token; carries a `Seed.Diagnostic`."
+    defexception [:diagnostic]
+
+    @impl true
+    def message(%__MODULE__{diagnostic: diagnostic}), do: diagnostic.message
   end
 
   @doc "Builds a lexer over `atn` reading the character stream `input`."
@@ -81,16 +85,25 @@ defmodule Seed.Lexer do
   end
 
   @doc """
-  Tokenizes the entire input, returning all tokens including the final EOF.
+  Tokenizes the entire input.
+
+  Returns `{:ok, tokens}` (the list ends with the EOF token) or
+  `{:error, [Seed.Diagnostic.t()]}` if a character cannot be matched.
   """
-  @spec tokenize(t()) :: [Token.t()]
+  @spec tokenize(t()) :: {:ok, [Token.t()]} | {:error, [Diagnostic.t()]}
   def tokenize(%__MODULE__{} = lexer) do
+    {:ok, collect_tokens(lexer)}
+  rescue
+    error in Error -> {:error, [error.diagnostic]}
+  end
+
+  defp collect_tokens(lexer) do
     {token, lexer} = next_token(lexer)
 
     if token.type == @eof do
       [token]
     else
-      [token | tokenize(lexer)]
+      [token | collect_tokens(lexer)]
     end
   end
 
@@ -113,8 +126,13 @@ defmodule Seed.Lexer do
         lexer = %{lexer | input: input, line: line, column: column, hit_eof: true}
         {emit_eof(lexer), lexer}
 
-      {:no_viable, _input, start_index, _line, _column} ->
-        raise Error, message: "no viable alternative at input index #{start_index}"
+      {:no_viable, _input, start_index, line, column} ->
+        raise Error,
+          diagnostic:
+            Diagnostic.error(:no_viable_token, "no viable token at input index #{start_index}",
+              line: line,
+              column: column
+            )
 
       {:ok, token_type, executor, input, line, column} ->
         finish_match(lexer, token_type, executor, input, line, column)

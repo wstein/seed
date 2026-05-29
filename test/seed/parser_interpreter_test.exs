@@ -24,16 +24,28 @@ defmodule Seed.ParserInterpreterTest do
 
       parser_grammar = Interp.load!(Path.join(@interp_dir, grammar <> ".interp"))
       tokens = tokenize(grammar, name)
-      tree = ParserInterpreter.parse(parser_grammar, tokens, start_rule)
 
+      assert {:ok, tree} = ParserInterpreter.parse(parser_grammar, tokens, start_rule)
       assert Trees.to_string_tree(tree, parser_grammar) == expected(name)
     end
+  end
+
+  test "parse/3 returns a diagnostic on mismatched input" do
+    parser_grammar = Interp.load!(Path.join(@interp_dir, "Hello.interp"))
+    lexer_grammar = Interp.load!(Path.join(@interp_dir, "HelloLexer.interp"))
+    # "greeting : 'hello' ID EOF" but the input ends after 'hello'.
+    {:ok, tokens} =
+      lexer_grammar.atn |> Lexer.new(CharStream.new("hello")) |> TokenStream.from_lexer()
+
+    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, severity: :error}]} =
+             ParserInterpreter.parse(parser_grammar, tokens, 0)
   end
 
   defp tokenize(grammar, name) do
     lexer_grammar = Interp.load!(Path.join(@interp_dir, grammar <> "Lexer.interp"))
     input = @parse_dir |> Path.join("#{name}.input") |> File.read!() |> CharStream.new()
-    lexer_grammar.atn |> Lexer.new(input) |> TokenStream.from_lexer()
+    {:ok, tokens} = lexer_grammar.atn |> Lexer.new(input) |> TokenStream.from_lexer()
+    tokens
   end
 
   defp expected(name) do

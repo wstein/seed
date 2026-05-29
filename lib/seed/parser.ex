@@ -18,6 +18,7 @@ defmodule Seed.Parser do
   """
 
   alias Seed.ATN
+  alias Seed.Diagnostic
   alias Seed.ParserRuleContext
   alias Seed.TerminalNode
   alias Seed.Token
@@ -43,8 +44,11 @@ defmodule Seed.Parser do
             parent_context_stack: []
 
   defmodule Error do
-    @moduledoc "Raised on a parse error the interpreter cannot recover from."
-    defexception [:message]
+    @moduledoc "Raised on a parse error; carries a `Seed.Diagnostic`."
+    defexception [:diagnostic]
+
+    @impl true
+    def message(%__MODULE__{diagnostic: diagnostic}), do: diagnostic.message
   end
 
   @doc "Builds a parser over `atn` reading `input`."
@@ -108,7 +112,14 @@ defmodule Seed.Parser do
     if token.type == token_type do
       consume(parser)
     else
-      raise Error, message: "expected token type #{token_type} but found #{inspect(token)}"
+      raise Error,
+        diagnostic:
+          Diagnostic.error(
+            :token_mismatch,
+            "mismatched input #{describe(token)}, expected token type #{token_type}",
+            line: token.line,
+            column: token.column
+          )
     end
   end
 
@@ -120,9 +131,19 @@ defmodule Seed.Parser do
     if token.type > 0 do
       consume(parser)
     else
-      raise Error, message: "expected any token but found #{inspect(token)}"
+      raise Error,
+        diagnostic:
+          Diagnostic.error(
+            :input_mismatch,
+            "mismatched input #{describe(token)}, expected any token",
+            line: token.line,
+            column: token.column
+          )
     end
   end
+
+  defp describe(%Token{text: nil, type: type}), do: "<#{type}>"
+  defp describe(%Token{text: text}), do: inspect(text)
 
   @doc "Consumes the current token, appending it to the current frame."
   @spec consume(t()) :: t()

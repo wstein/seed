@@ -23,6 +23,7 @@ defmodule Seed.ParserATNSimulator do
   alias Seed.ATN.SemanticContext.PrecedencePredicate
   alias Seed.ATN.State
   alias Seed.ATN.Transition
+  alias Seed.Diagnostic
   alias Seed.Parser
   alias Seed.Token
   alias Seed.TokenStream
@@ -126,7 +127,7 @@ defmodule Seed.ParserATNSimulator do
     reach = compute_reach_set(atn, configs, t, parser)
 
     if ParserATNConfigSet.empty?(reach) do
-      predict_from(configs)
+      predict_from(configs, input)
     else
       resolve(atn, reach, input, parser)
     end
@@ -143,11 +144,20 @@ defmodule Seed.ParserATNSimulator do
     end
   end
 
-  defp predict_from(configs) do
+  defp predict_from(configs, input) do
     case ParserATNConfigSet.configs(configs) do
-      [] -> raise Parser.Error, message: "no viable alternative"
+      [] -> raise Parser.Error, diagnostic: no_viable_alternative(input)
       reach_configs -> PredictionMode.min_alt(reach_configs)
     end
+  end
+
+  defp no_viable_alternative(input) do
+    token = TokenStream.lt(input, 1)
+
+    Diagnostic.error(:no_viable_alternative, "no viable alternative at input",
+      line: token.line,
+      column: token.column
+    )
   end
 
   # --- Reach --------------------------------------------------------------
