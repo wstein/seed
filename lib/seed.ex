@@ -11,9 +11,11 @@ defmodule Seed do
       {:ok, tree} = Seed.parse(parser, lexer, "x = 1 + 2;", 0)
 
   Both `parse/4` and `tokenize/2` return `{:ok, result} | {:error,
-  [Seed.Diagnostic.t()]}`. See the architecture documentation under `docs/`
-  for the design and the lower-level building blocks (`Seed.Lexer`,
-  `Seed.ParserInterpreter`, `Seed.Trees`, …).
+  [Seed.Diagnostic.t()]}`. For a compile-time alternative that bakes the
+  grammar into a module with named entry points, see `Seed.Generated`. See
+  the architecture documentation under `docs/` for the design and the
+  lower-level building blocks (`Seed.Lexer`, `Seed.ParserInterpreter`,
+  `Seed.Trees`, …).
   """
 
   alias Seed.CharStream

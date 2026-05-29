@@ -45,6 +45,10 @@ Early development. The implemented and verified foundation is:
 - **Grammar loading** — `Seed.Interp` loads an ANTLR `.interp` file into a
   `Seed.Grammar` (ATN + vocabulary + rule/channel/mode names), so a grammar
   can be lexed and parsed at run time with no code generation.
+- **Code generation** — `use Seed.Generated, parser: …, lexer: …` is the
+  Elixir target: it reads the `.interp` artifacts at compile time, bakes the
+  grammars into the module, and emits named entry points (`parse/1`,
+  `parse/2` by rule, and `parse_<rule>/1`) backed by the runtime.
 - **Diagnostics & recovery** — `Seed.Lexer.tokenize/1` and
   `Seed.ParserInterpreter.parse/3` return `{:ok, result} | {:error,
   [Seed.Diagnostic.t()]}`; a diagnostic carries a machine-readable code,
@@ -55,8 +59,9 @@ Early development. The implemented and verified foundation is:
   check so it cannot loop), and panic-mode resynchronization to a rule's
   follow set when neither applies.
 
-The Elixir code-generation target is the next milestone — see the
-architecture docs for the full roadmap.
+Recognizer base behaviours, a tree walker, and parsing that starts directly
+at a left-recursive rule are the next milestones — see the architecture docs
+for the full roadmap.
 
 ## Design principles
 

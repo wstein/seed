@@ -71,16 +71,23 @@ xref:04-solution-strategy.adoc[Solution Strategy].
    either consumes a token or pops a rule, so it always makes progress.
 --
 
+* `Seed.Generated` — the Elixir code-generation target. `use Seed.Generated,
+  parser: …, lexer: …` reads the ANTLR `.interp` artifacts at compile time,
+  bakes the deserialized grammars into the module (registered as
+  `@external_resource`), and emits named entry points — `parse/1`, `parse/2`
+  (by rule name or index), and a `parse_<rule>/1` per rule — that delegate to
+  the runtime. No grammar work happens at run time.
+
 === Planned
 
 * *Prediction-time resync* — recovery for a no-viable-alternative at a
   decision (today a hard parse error), complementing the match-time resync
   above.
+* *Left-recursive start rule* — parsing that begins directly at a precedence
+  (left-recursive) rule; today only non-recursive start rules are supported
+  (a left-recursive rule parses correctly when reached as a sub-rule).
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).
-* *Code generation* — the Elixir target that emits a parser from a grammar.
 * *Recognizer bases* — lexer and parser base behaviours, error listeners
   and recovery strategy, parse-tree nodes, and the tree walker.
-* *Code generation* — the Elixir target that turns a grammar into a Seed
-  parser module.
