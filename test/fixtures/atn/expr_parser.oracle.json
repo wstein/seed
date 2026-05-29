@@ -1,0 +1,10 @@
+{
+  "grammarType": "PARSER",
+  "maxTokenType": 11,
+  "numStates": 39,
+  "numRules": 3,
+  "numDecisions": 4,
+  "numModes": 0,
+  "stateTypeHistogram": {1=22, 2=3, 3=1, 4=1, 5=1, 7=3, 8=3, 9=1, 10=1, 11=1, 12=2},
+  "transitionTypeHistogram": {1=26, 3=5, 5=8, 6=1, 7=2, 10=2}
+}

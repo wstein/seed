@@ -1,0 +1,10 @@
+{
+  "grammarType": "LEXER",
+  "maxTokenType": 5,
+  "numStates": 21,
+  "numRules": 5,
+  "numDecisions": 1,
+  "numModes": 1,
+  "stateTypeHistogram": {1=10, 2=5, 6=1, 7=5},
+  "transitionTypeHistogram": {1=15, 2=1, 5=3, 9=1}
+}
