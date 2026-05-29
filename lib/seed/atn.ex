@@ -27,7 +27,8 @@ defmodule Seed.ATN do
           mode_to_start_state: [non_neg_integer()],
           decision_to_state: [non_neg_integer()],
           lexer_actions: [Seed.ATN.LexerAction.t()],
-          sets: [Seed.IntervalSet.t()]
+          sets: [Seed.IntervalSet.t()],
+          cache_key: integer() | nil
         }
 
   @enforce_keys [:grammar_type, :max_token_type]
@@ -41,7 +42,8 @@ defmodule Seed.ATN do
             mode_to_start_state: [],
             decision_to_state: [],
             lexer_actions: [],
-            sets: []
+            sets: [],
+            cache_key: nil
 
   @doc "Returns the state with the given `state_number`, or `nil`."
   @spec state(t(), non_neg_integer()) :: State.t() | nil

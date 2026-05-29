@@ -44,12 +44,12 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   left-recursion precedence filter, without the DFA cache.
 * `Seed.Parser` and `Seed.ParserInterpreter` — the ATN-walking tree builder,
   including left-recursion. Validated against the reference parser's trees.
+* `Seed.DFACache` and `Seed.Application` — a supervised, bounded ETS table
+  memoizing the lexer's ATN decisions
+  (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure speedup.
 
 === Planned
 
-* *Lexer DFA cache* — an ETS-backed memoization of lexer decisions
-  (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure
-  optimization over the current simulator.
 * *Full-context (LL) fallback* — for grammars that are ambiguous under SLL.
 * *Code generation* — the Elixir target that emits a parser from a grammar.
 * *Recognizer bases* — lexer and parser base behaviours, error listeners

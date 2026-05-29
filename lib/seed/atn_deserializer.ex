@@ -39,6 +39,9 @@ defmodule Seed.ATNDeserializer do
       data: List.to_tuple(data),
       size: length(data),
       p: 0,
+      # Stable per-grammar key for the DFA cache: identical serialized ATNs
+      # (i.e. the same grammar) share cached decisions.
+      cache_key: :erlang.phash2(data),
       grammar_type: nil,
       max_token_type: 0,
       states: %{},
@@ -492,7 +495,8 @@ defmodule Seed.ATNDeserializer do
       mode_to_start_state: cursor.mode_to_start_state,
       decision_to_state: cursor.decision_to_state,
       lexer_actions: cursor.lexer_actions,
-      sets: cursor.sets
+      sets: cursor.sets,
+      cache_key: cursor.cache_key
     }
   end
 

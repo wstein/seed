@@ -35,9 +35,13 @@ Early development. The implemented and verified foundation is:
   reference parser's trees (see `test/fixtures/parse/`), including operator
   precedence.
 
-An ETS-backed DFA cache (a pure speedup), full-context (LL) fallback for
-SLL-ambiguous grammars, and the Elixir code-generation target are the next
-milestones — see the architecture docs for the full roadmap.
+- **DFA cache** — `Seed.DFACache` memoizes the lexer's ATN decisions in a
+  supervised, bounded ETS table (ADR-005), keyed per grammar. It is a pure
+  speedup: results are identical with or without it.
+
+Full-context (LL) fallback for SLL-ambiguous grammars and the Elixir
+code-generation target are the next milestones — see the architecture docs
+for the full roadmap.
 
 ## Design principles
 

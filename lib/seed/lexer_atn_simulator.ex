@@ -3,12 +3,12 @@ defmodule Seed.LexerATNSimulator do
   Matches a single token by simulating the lexer ATN over a character
   stream.
 
-  This is a faithful transliteration of the reference `LexerATNSimulator`
-  with one deliberate omission: it does **not** build the adaptive DFA
-  cache. The DFA is pure memoization of decisions the ATN already makes, so
-  omitting it yields identical results, only recomputed each time. A
-  BEAM-native cache (ETS, per the ADR-005 decision) is a later optimization
-  that does not change behavior.
+  This is a faithful transliteration of the reference `LexerATNSimulator`.
+  Instead of the reference's bespoke DFA structure it memoizes the two
+  expensive results — the mode's start-state closure and each edge's reach —
+  through `Seed.DFACache` (an ETS table, per the ADR-005 decision). The
+  cache is a pure optimization: a miss recomputes and the result is
+  identical, so behaviour does not depend on whether the cache is running.
 
   The algorithm is otherwise the reference one: compute the epsilon-closure
   of the mode's start state, then repeatedly compute the set of
@@ -34,6 +34,7 @@ defmodule Seed.LexerATNSimulator do
   }
 
   alias Seed.CharStream
+  alias Seed.DFACache
   alias Seed.IntervalSet
 
   @eof Seed.Token.eof()
@@ -66,7 +67,11 @@ defmodule Seed.LexerATNSimulator do
     start_index = CharStream.index(input)
     start_number = Enum.at(atn.mode_to_start_state, mode)
     start_state = Map.fetch!(atn.states, start_number)
-    configs = compute_start_state(atn, start_state)
+
+    configs =
+      DFACache.memoize({atn.cache_key, :lexer_s0, mode}, fn ->
+        compute_start_state(atn, start_state)
+      end)
 
     t = CharStream.la(input, 1)
     accept = capture_accept(atn, configs, input, line, column, nil)
@@ -88,7 +93,7 @@ defmodule Seed.LexerATNSimulator do
   # --- Main loop ----------------------------------------------------------
 
   defp exec_atn(atn, input, configs, t, line, column, start_index, accept) do
-    reach = compute_reach_set(atn, configs, t)
+    reach = cached_reach_set(atn, configs, t)
 
     if ATNConfigSet.empty?(reach) do
       fail_or_accept(accept, input, t, line, column, start_index)
@@ -157,6 +162,14 @@ defmodule Seed.LexerATNSimulator do
   end
 
   # --- Reach --------------------------------------------------------------
+
+  # Memoizes each ATN edge: the reach for a configuration set on a symbol
+  # depends only on the grammar, the set, and the symbol.
+  defp cached_reach_set(atn, configs, t) do
+    DFACache.memoize({atn.cache_key, :lexer_edge, ATNConfigSet.configs(configs), t}, fn ->
+      compute_reach_set(atn, configs, t)
+    end)
+  end
 
   defp compute_reach_set(atn, configs, t) do
     treat_eof = t == @eof
