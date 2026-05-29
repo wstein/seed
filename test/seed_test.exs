@@ -1,8 +1,9 @@
 defmodule SeedTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
   doctest Seed
 
-  test "greets the world" do
-    assert Seed.hello() == :world
+  test "version/0 returns the configured project version" do
+    assert Seed.version() == Mix.Project.config()[:version]
+    assert is_binary(Seed.version())
   end
 end
