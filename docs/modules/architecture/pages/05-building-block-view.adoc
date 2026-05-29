@@ -87,11 +87,20 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   `@external_resource`), and emits named entry points — `parse/1`, `parse/2`
   (by rule name or index), and a `parse_<rule>/1` per rule — that delegate to
   the runtime. No grammar work happens at run time.
+* `Seed.ParseTreeWalker` / `Seed.ParseTreeListener` and
+  `Seed.ParseTreeVisitor` — traversal of the produced tree. The walker drives
+  a listener through a depth-first walk, threading an accumulator
+  (`enter_rule`/`exit_rule` around children, `visit_terminal`/
+  `visit_error_node` at leaves); the visitor dispatches per node and computes
+  a value, descending with `visit_children`. Both are behaviours whose `use`
+  macro supplies base defaults, so an implementation overrides only what it
+  needs — the functional analogue of ANTLR's listener/visitor and their base
+  classes. (ANTLR's *error listeners* have no counterpart: Seed reports
+  problems as `Seed.Diagnostic` values, per
+  xref:09-architecture-decisions.adoc#adr-003[ADR-003].)
 
 === Planned
 
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).
-* *Recognizer bases* — lexer and parser base behaviours, error listeners
-  and recovery strategy, parse-tree nodes, and the tree walker.

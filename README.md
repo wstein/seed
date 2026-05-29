@@ -59,9 +59,15 @@ Early development. The implemented and verified foundation is:
   rule's follow set — so one parse reports a diagnostic per error and still
   returns a complete tree, with `Seed.ErrorNode` leaves (including `<missing
   …>` for inserted tokens) marking the recovery points just as ANTLR does.
+- **Tree traversal** — `Seed.ParseTreeWalker` drives a
+  `Seed.ParseTreeListener` over the tree (depth-first, threading an
+  accumulator), and `Seed.ParseTreeVisitor` computes a value per node. Both
+  are behaviours whose `use` macro supplies base defaults, so you override
+  only the callbacks you need — the functional analogue of ANTLR's
+  listener/visitor.
 
-Recognizer base behaviours and a tree walker are the next milestones — see
-the architecture docs for the full roadmap.
+An SLL-first prediction fast path is the main remaining performance
+milestone — see the architecture docs for the full roadmap.
 
 ## Design principles
 
