@@ -204,3 +204,65 @@ in scope only as needed to construct a correct ATN; replicating every
 reference warning is not a goal. Until the milestone ships, the reused
 ANTLR/antlr-ng tool remains the supported path
 (xref:manual:feature-parity.adoc[Feature Parity And Roadmap]).
+
+[#adr-008]
+=== ADR-008: A specialization ladder for performance — flatten, then generate Elixir, benchmark-gated
+
+*Status:* Accepted
+
+*Context:* Seed parses by interpreting the ATN (<<adr-002>>), which
+<<adr-006>> identifies as the BEAM's weak spot — tight, data-structure-chasing
+loops. A baseline harness (`bench/parse_throughput.exs`, JSON grammar, OTP 28)
+measures the cost: a 460 KiB document (≈200 k tokens) lexes and parses at
+about **0.2 MB/s (≈72 k tokens/s, ≈2.8 s)** — fine for interactive,
+kilobyte-sized inputs, slow for large or batch workloads.
+
+Four proposals — Core Erlang lowering, a grammar sigil, compile-time macros,
+and a Rust backend — were debated. Three facts collapse them from independent
+goals into one decision:
+
+* On the BEAM every front-end IR — Elixir AST, Erlang Abstract Format, Core
+  Erlang — converges at BEAM SSA and the BeamAsm JIT, so entering *lower* does
+  not make generated code run faster; it only changes compile-time cost and
+  what control flow is expressible.
+* The runtime win is *specialization* — emitting decision-specific code
+  instead of walking a generic ATN — which is reachable at any IR level.
+* BeamAsm is a template JIT with no partial evaluation, so it cannot specialize
+  a data-driven interpreter to a grammar (no GraalVM/Truffle equivalent exists
+  for the BEAM). Specialization therefore requires either a partial-evaluating
+  JIT (unavailable) or code generation.
+
+*Decision:* Pursue performance up a *specialization ladder*. Each rung is
+benchmark-gated against the harness and must clear the rung below before we
+climb; do not skip rungs.
+
+1. *Flatten the interpreter* — a table-driven DFA loop over flat integer
+   arrays (no code generation), the shape BeamAsm handles best. Try first.
+2. *Staged codegen to inspectable Elixir AST* — `Seed.Generated` emits per-rule
+   functions for the straight-line path and reuses the validated ATN simulator
+   as the prediction and left-recursion fallback (a hybrid, as ANTLR is).
+   Quoted AST, not source text; inspectable via `Macro.to_string/1`.
+3. *Descend the IR ladder* — Erlang Abstract Format, then Core Erlang — only
+   for control flow Elixir cannot express, or to avoid front-end compile-time
+   blow-up on a large grammar; never for runtime speed alone.
+
+Rejected: emitting BEAM bytecode or assembly directly (internal, churns per
+OTP release, loses tooling and the JIT contract, and yields no runtime gain
+over Abstract Format); and foreign code-generation targets (Rust, JS, …) —
+Seed stays BEAM-native (<<adr-001>>, <<adr-004>>). A Rust NIF remains the
+<<adr-006>> escape hatch, revisited only after rung 2 and only if a profile
+shows the residual fallback loop dominates.
+
+The custom sigil and richer compile-time macros are developer-experience
+layers on top of rung 2 and the self-hosting tool (<<adr-007>>), not
+independent performance goals; a true inline-grammar sigil is gated on the
+tool so it needs no external jar.
+
+*Consequences:* No performance change merges without before/after numbers from
+`bench/parse_throughput.exs`. A generated parser must produce byte-identical
+trees to the interpreter on every oracle fixture (and against the reference),
+differentially tested: the interpreter stays the permanent reference and
+fallback, and codegen is additive, never a replacement. Generated code must
+stay inspectable (a tested affordance), preserving <<adr-003>>. The ladder is
+also the order of increasing maintenance cost, which is why each rung must
+earn the next on the benchmark rather than by intuition.

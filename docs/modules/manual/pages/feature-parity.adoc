@@ -156,12 +156,19 @@ shippable behind the project's quality gate (`make verify`).
 | Extend `Seed.Generated` to emit typed per-rule context structs, labeled-
   alternative accessors, and listener/visitor scaffolding, optionally inlining
   predicates/actions as generated functions (subsumes B for generated code).
+  Performance codegen follows the specialization ladder in
+  xref:architecture:09-architecture-decisions.adoc#adr-008[ADR-008] — flatten
+  the interpreter first, then emit inspectable Elixir AST, benchmark-gated.
 | Typed contexts and an ergonomic, ANTLR-target-like generated API.
 
 | D. SLL-first prediction
 | Add a context-free SLL pass with full-context fallback on conflict, with a
-  DFA cacheable across call sites.
-| The main remaining performance gap (correctness is already validated).
+  DFA cacheable across call sites. Needs a faithful port of the reference's
+  full-context closure semantics (a first attempt was reverted for
+  mispredicting the context-sensitive `ctx_b` case), and is governed by the
+  benchmark gate in xref:architecture:09-architecture-decisions.adoc#adr-008[ADR-008].
+| The main remaining prediction-time performance lever (correctness is already
+  validated under full context).
 
 | E. Tooling parity
 | `TokenStreamRewriter`, tree XPath, tree pattern matching, and a bail error
