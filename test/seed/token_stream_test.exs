@@ -113,4 +113,50 @@ defmodule Seed.TokenStreamTest do
       assert TokenStream.index(TokenStream.seek(stream, 99)) == 3
     end
   end
+
+  describe "off-channel filtering" do
+    # "a", an off-channel comment, "b", EOF.
+    defp hidden_stream do
+      TokenStream.new([
+        Token.new(4, text: "a", index: 0),
+        Token.new(9, text: "# c", index: 1, channel: Token.hidden_channel()),
+        Token.new(4, text: "b", index: 2),
+        Token.eof_token(3)
+      ])
+    end
+
+    test "lt/2 and la/2 skip off-channel tokens" do
+      stream = hidden_stream()
+
+      assert TokenStream.lt(stream, 1).text == "a"
+      assert TokenStream.lt(stream, 2).text == "b"
+      assert TokenStream.la(stream, 2) == 4
+    end
+
+    test "consume/1 advances over off-channel tokens" do
+      stream = hidden_stream() |> TokenStream.consume()
+
+      assert TokenStream.lt(stream, 1).text == "b"
+      assert TokenStream.lt(stream, -1).text == "a"
+    end
+
+    test "off-channel tokens stay addressable by absolute position" do
+      stream = hidden_stream()
+
+      assert TokenStream.size(stream) == 4
+      assert TokenStream.get(stream, 1).text == "# c"
+    end
+
+    test "new/1 starts on the first on-channel token" do
+      stream =
+        TokenStream.new([
+          Token.new(9, text: "# c", index: 0, channel: Token.hidden_channel()),
+          Token.new(4, text: "a", index: 1),
+          Token.eof_token(2)
+        ])
+
+      assert TokenStream.index(stream) == 1
+      assert TokenStream.lt(stream, 1).text == "a"
+    end
+  end
 end

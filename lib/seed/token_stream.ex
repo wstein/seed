@@ -11,6 +11,13 @@ defmodule Seed.TokenStream do
   the current token, `lt(s, -1)` is the previous one, and `lt(s, 0)` is
   `nil`. Reading forward past the end yields the EOF token.
 
+  Like the reference `CommonTokenStream`, navigation is *channel-aware*:
+  `lt/2`, `la/2`, and `consume/1` skip tokens that are not on the default
+  channel (those a grammar routes elsewhere with `channel(...)`, e.g.
+  comments or whitespace sent to `HIDDEN` instead of being `skip`-ed). The
+  off-channel tokens remain in the buffer, addressable by absolute position
+  with `get/2`, so tooling can still see them.
+
       iex> tokens = [Seed.Token.new(4, text: "if"), Seed.Token.eof_token()]
       iex> s = Seed.TokenStream.new(tokens)
       iex> Seed.TokenStream.la(s, 1)
@@ -21,6 +28,9 @@ defmodule Seed.TokenStream do
   """
 
   alias Seed.Token
+
+  @eof Token.eof()
+  @default_channel Token.default_channel()
 
   @type t :: %__MODULE__{
           tokens: tuple(),
@@ -34,7 +44,10 @@ defmodule Seed.TokenStream do
   @spec new([Token.t()]) :: t()
   def new(tokens) when is_list(tokens) do
     buffer = List.to_tuple(tokens)
-    %__MODULE__{tokens: buffer, size: tuple_size(buffer), index: 0}
+    stream = %__MODULE__{tokens: buffer, size: tuple_size(buffer), index: 0}
+    # Position on the first on-channel token, as the parser only ever sees
+    # on-channel tokens.
+    %{stream | index: next_on_channel(stream, 0)}
   end
 
   @doc """
@@ -78,15 +91,33 @@ defmodule Seed.TokenStream do
   @spec lt(t(), integer()) :: Token.t() | nil
   def lt(%__MODULE__{}, 0), do: nil
 
-  def lt(%__MODULE__{index: index} = stream, k) when is_integer(k) and k < 0 do
-    pos = index + k
-    if pos < 0, do: nil, else: get(stream, pos)
+  def lt(%__MODULE__{} = stream, k) when is_integer(k) and k < 0 do
+    case step_back(stream, stream.index, -k) do
+      pos when pos < 0 -> nil
+      pos -> get(stream, pos)
+    end
   end
 
-  def lt(%__MODULE__{index: index, size: size} = stream, k) when is_integer(k) and k > 0 do
-    pos = index + k - 1
-    if pos >= size, do: eof_token(stream), else: get(stream, pos)
+  def lt(%__MODULE__{size: size} = stream, k) when is_integer(k) and k > 0 do
+    case step_forward(stream, stream.index, k - 1) do
+      pos when pos >= size -> eof_token(stream)
+      pos -> get(stream, pos)
+    end
   end
+
+  # Walks `n` on-channel tokens forward from `pos` (which is itself
+  # on-channel). Landing past the end stays past the end (EOF).
+  defp step_forward(_stream, pos, 0), do: pos
+
+  defp step_forward(stream, pos, n),
+    do: step_forward(stream, next_on_channel(stream, pos + 1), n - 1)
+
+  # Walks `n` on-channel tokens back from `pos`; a negative result means there
+  # is no such token.
+  defp step_back(_stream, pos, 0), do: pos
+
+  defp step_back(stream, pos, n),
+    do: step_back(stream, previous_on_channel(stream, pos - 1), n - 1)
 
   @doc """
   Returns the type of the token at lookahead offset `k`.
@@ -112,8 +143,8 @@ defmodule Seed.TokenStream do
     raise ArgumentError, "cannot consume EOF"
   end
 
-  def consume(%__MODULE__{index: index} = stream) do
-    %{stream | index: index + 1}
+  def consume(%__MODULE__{} = stream) do
+    %{stream | index: next_on_channel(stream, stream.index + 1)}
   end
 
   @doc "Returns a marker for the current position (the current index)."
@@ -129,6 +160,25 @@ defmodule Seed.TokenStream do
   def seek(%__MODULE__{size: size} = stream, pos) when is_integer(pos) do
     %{stream | index: pos |> max(0) |> min(size)}
   end
+
+  # The position of the first on-channel token at or after `pos`, or `size`
+  # when none remains. EOF is always on-channel, so a non-empty stream always
+  # resolves to a real position.
+  defp next_on_channel(%__MODULE__{size: size}, pos) when pos >= size, do: size
+
+  defp next_on_channel(%__MODULE__{} = stream, pos) do
+    if on_channel?(get(stream, pos)), do: pos, else: next_on_channel(stream, pos + 1)
+  end
+
+  # The position of the last on-channel token at or before `pos`, or `-1`.
+  defp previous_on_channel(%__MODULE__{}, pos) when pos < 0, do: -1
+
+  defp previous_on_channel(%__MODULE__{} = stream, pos) do
+    if on_channel?(get(stream, pos)), do: pos, else: previous_on_channel(stream, pos - 1)
+  end
+
+  defp on_channel?(%Token{type: @eof}), do: true
+  defp on_channel?(%Token{channel: channel}), do: channel == @default_channel
 
   # Returns the buffer's trailing EOF token when present, otherwise a
   # synthetic one, so forward lookahead past the end is well defined.

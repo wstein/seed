@@ -178,6 +178,18 @@ defmodule Seed.ParserInterpreterTest do
     assert_received {:sempred, 1, 0}
   end
 
+  test "the parser skips tokens routed to a non-default channel" do
+    parser = Interp.load!(Path.join(@interp_dir, "Hidden.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "HiddenLexer.interp"))
+    # `prog : ID+ EOF` with COMMENT on the hidden channel: the comment is in
+    # the token stream but must not reach the parser.
+    {:ok, tokens} =
+      lexer.atn |> Lexer.new(CharStream.new("a # c\nb")) |> TokenStream.from_lexer()
+
+    assert {:ok, tree} = ParserInterpreter.parse(parser, tokens, 0)
+    assert Trees.to_string_tree(tree, parser) == "(prog a b <EOF>)"
+  end
+
   test "parser predictions are memoized in the DFA cache" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     tokens = tokenize("Expr", "expr")
