@@ -1,0 +1,8 @@
+= Architecture Decisions
+:page-layout: default
+
+Capture the architectural choices that deserve durable context.
+
+== Decision Log
+
+Summarize the most important accepted or pending decisions.

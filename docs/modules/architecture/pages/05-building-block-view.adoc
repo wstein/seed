@@ -1,0 +1,8 @@
+= Building Block View
+:page-layout: default
+
+Describe the major subsystems, modules, or services.
+
+== Top-Level Structure
+
+List the main building blocks and why they exist.

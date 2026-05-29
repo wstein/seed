@@ -1,0 +1,16 @@
+= Manual
+:page-layout: default
+
+Use this space for task-oriented operating guidance.
+
+== Suggested Sections
+
+* local development workflow
+* build and test commands
+* release or deployment procedure
+* troubleshooting and recovery steps
+
+== Relationship To The Other Docs
+
+* Keep project orientation in xref:onboarding:index.adoc[Onboarding].
+* Keep system reasoning and tradeoffs in xref:architecture:index.adoc[Architecture].

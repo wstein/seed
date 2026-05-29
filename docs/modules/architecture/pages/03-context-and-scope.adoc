@@ -1,0 +1,12 @@
+= Context And Scope
+:page-layout: default
+
+Explain the system boundary and the most important external interactions.
+
+== Business Context
+
+Describe the surrounding process or product boundary.
+
+== Technical Context
+
+List external systems, data flows, and interfaces.

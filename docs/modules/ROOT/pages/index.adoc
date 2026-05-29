@@ -1,0 +1,13 @@
+= Documentation Index
+:page-layout: default
+
+This is the shared front door for the `myproject` documentation set.
+
+Use the three curated surfaces intentionally:
+
+* xref:onboarding:index.adoc[Onboarding] for first steps and team orientation.
+* xref:manual:index.adoc[Manual] for repeatable operator tasks and commands.
+* xref:architecture:index.adoc[Architecture] for the arc42 system view.
+
+The structure is intentionally small so the docs can grow from real project
+needs without losing a clear entrypoint.

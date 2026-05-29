@@ -1,0 +1,8 @@
+= Quality Requirements
+:page-layout: default
+
+Document the quality attributes that matter most for this system.
+
+== Quality Goals
+
+Examples include reliability, performance, security, and maintainability.

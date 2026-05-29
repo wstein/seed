@@ -1,0 +1,8 @@
+= Cross-Cutting Concepts
+:page-layout: default
+
+Use this chapter for concepts that apply across multiple building blocks.
+
+== Shared Concerns
+
+Examples include observability, security, configuration, and error handling.

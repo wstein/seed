@@ -1,0 +1,22 @@
+= Architecture
+:page-layout: default
+
+This section uses arc42 as its spine.
+
+Use it to document structure, decisions, constraints, and quality goals without
+mixing project onboarding or operator runbooks into the same surface.
+
+== Chapter Map
+
+* xref:architecture:01-introduction-and-goals.adoc[Introduction And Goals]
+* xref:architecture:02-constraints.adoc[Constraints]
+* xref:architecture:03-context-and-scope.adoc[Context And Scope]
+* xref:architecture:04-solution-strategy.adoc[Solution Strategy]
+* xref:architecture:05-building-block-view.adoc[Building Block View]
+* xref:architecture:06-runtime-view.adoc[Runtime View]
+* xref:architecture:07-deployment-view.adoc[Deployment View]
+* xref:architecture:08-cross-cutting-concepts.adoc[Cross-Cutting Concepts]
+* xref:architecture:09-architecture-decisions.adoc[Architecture Decisions]
+* xref:architecture:10-quality-requirements.adoc[Quality Requirements]
+* xref:architecture:11-risks-and-technical-debt.adoc[Risks And Technical Debt]
+* xref:architecture:12-glossary.adoc[Glossary]

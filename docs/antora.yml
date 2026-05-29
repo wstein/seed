@@ -1,0 +1,8 @@
+name: myproject
+title: myproject Documentation
+version: "0.1"
+nav:
+  - modules/ROOT/nav.adoc
+  - modules/onboarding/nav.adoc
+  - modules/manual/nav.adoc
+  - modules/architecture/nav.adoc

@@ -1,0 +1,12 @@
+= Constraints
+:page-layout: default
+
+Document the decisions and external conditions the architecture must honor.
+
+== Technical Constraints
+
+Record platform, runtime, or integration boundaries.
+
+== Organizational Constraints
+
+Record team, compliance, or release-process limits that shape the design.

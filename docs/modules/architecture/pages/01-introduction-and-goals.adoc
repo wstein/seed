@@ -1,0 +1,13 @@
+= Introduction And Goals
+:page-layout: default
+
+Describe why `myproject` exists, who it serves, and what success looks
+like.
+
+== Business Or Product Goals
+
+Capture the outcomes this system must enable.
+
+== Stakeholders
+
+List the key users, operators, and maintainers the architecture must support.

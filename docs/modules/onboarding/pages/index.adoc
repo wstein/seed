@@ -1,0 +1,21 @@
+= Start Here
+:page-layout: default
+
+Welcome to `myproject`.
+
+== What This Project Is
+
+Replace this section with a short explanation of the product, service, or tool
+you are building.
+
+== First Steps
+
+* Explain how to build or run the project locally.
+* Point contributors to the primary workflows they should learn first.
+* Link deeper operational detail into xref:manual:index.adoc[the manual].
+
+== How The Docs Are Organized
+
+* xref:index.adoc[Docs Index] gives the top-level map.
+* xref:manual:index.adoc[Manual] holds task-oriented procedures.
+* xref:architecture:index.adoc[Architecture] holds the arc42 system view.

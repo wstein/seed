@@ -1,0 +1,8 @@
+= Risks And Technical Debt
+:page-layout: default
+
+Record known risks, sharp edges, and debt that should stay visible.
+
+== Open Risks
+
+List the issues worth revisiting during planning and release reviews.

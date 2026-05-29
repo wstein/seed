@@ -1,0 +1,8 @@
+= Solution Strategy
+:page-layout: default
+
+Summarize the big architectural moves that answer the goals and constraints.
+
+== Core Approach
+
+Describe the main design strategy in a few direct points.

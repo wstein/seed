@@ -1,0 +1,8 @@
+= Deployment View
+:page-layout: default
+
+Describe where the system runs and how it is packaged.
+
+== Environments
+
+Document the deployment units, environments, and operational boundaries.

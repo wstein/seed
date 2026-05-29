@@ -1,0 +1,8 @@
+= Glossary
+:page-layout: default
+
+Define project-specific language so the docs stay precise over time.
+
+== Terms
+
+Add short definitions for names, acronyms, and concepts used across the docs.

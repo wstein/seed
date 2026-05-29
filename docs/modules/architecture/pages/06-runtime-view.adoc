@@ -1,0 +1,8 @@
+= Runtime View
+:page-layout: default
+
+Capture the most important runtime scenarios.
+
+== Key Scenarios
+
+Describe the flows that matter most for correctness, latency, or safety.
