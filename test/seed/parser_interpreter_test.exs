@@ -22,7 +22,10 @@ defmodule Seed.ParserInterpreterTest do
     %{name: "hello", grammar: "Hello", start_rule: 0},
     %{name: "expr", grammar: "Expr", start_rule: 0},
     %{name: "ctx_a", grammar: "Ctx", start_rule: 0},
-    %{name: "ctx_b", grammar: "Ctx", start_rule: 0}
+    %{name: "ctx_b", grammar: "Ctx", start_rule: 0},
+    # A real grammar: lexer fragments, recursion, multi-alt decisions,
+    # not-set, and number/string lexing.
+    %{name: "json", grammar: "JSON", start_rule: 0}
   ]
 
   for fixture <- @cases do

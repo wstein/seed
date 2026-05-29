@@ -25,6 +25,9 @@ The fixtures cover:
   (`@ 34 abc`) is the discriminating case: it parses correctly only with
   full-context prediction — picking the lowest conflicting alternative would
   mispredict.
+- `json` — the `JSON` grammar's start rule `json`: a real grammar with
+  lexer fragments, recursion, multi-alternative decisions, not-set, and
+  number/string lexing.
 
 Regenerate with:
 

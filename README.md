@@ -36,7 +36,8 @@ Early development. The implemented and verified foundation is:
   correctly. `parse/3` accepts a `Seed.Grammar` (or a bare ATN), and
   `Seed.Trees` renders the tree with the grammar's rule names. Validated
   against the reference parser's trees (see `test/fixtures/parse/`),
-  including operator precedence and a context-sensitive grammar.
+  including operator precedence, a context-sensitive grammar, and a real
+  JSON grammar.
 
 - **DFA cache** — `Seed.DFACache` memoizes ATN decisions in a supervised,
   bounded ETS table (ADR-005), keyed per grammar. It is a pure speedup:

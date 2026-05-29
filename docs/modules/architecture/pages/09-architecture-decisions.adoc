@@ -117,13 +117,15 @@ closures and edge reaches. It degrades to recomputation when the table is
 absent, so it never changes results.
 
 The static ATN is held as a plain immutable term, **not** in
-`:persistent_term`. A concurrent-parse benchmark (`bench/parse_bench.exs`)
-found no throughput gain from `:persistent_term`: the ATN is copied into a
-process once and amortized over the parses it runs, so by-value parsing is
-as fast as (or faster than) shared reads, and marginally faster in the
-realistic long-lived-worker case. `:persistent_term` is therefore deferred
-until a large grammar or a one-parse-per-process workload measurably
-justifies it — consistent with the measure-first stance of ADR-006.
+`:persistent_term`. A concurrent-parse benchmark (`bench/parse_bench.exs`,
+on the JSON grammar — a ~35 KiB ATN) found no throughput gain from
+`:persistent_term`: the ATN is copied into a process once and amortized
+over the parses it runs, so by-value parsing is as fast as (or faster than)
+shared reads in the realistic long-lived-worker case, and only marginally
+faster one-parse-per-process. `:persistent_term` is therefore deferred
+until a substantially larger grammar or a one-parse-per-process workload
+measurably justifies it — consistent with the measure-first stance of
+ADR-006.
 
 [#adr-006]
 === ADR-006: Defer native acceleration (NIF) until measured

@@ -1,0 +1,1 @@
+(json (value (obj { (pair "name" : (value "seed")) , (pair "nums" : (value (arr [ (value 1) , (value 2.5) , (value -3e2) ]))) , (pair "ok" : (value true)) , (pair "x" : (value (obj { (pair "a" : (value null)) }))) })) <EOF>)

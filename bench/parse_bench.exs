@@ -11,9 +11,9 @@
 alias Seed.Interp
 
 interp = Path.expand("../test/fixtures/interp", __DIR__)
-parser = Interp.load!(Path.join(interp, "Expr.interp"))
-lexer = Interp.load!(Path.join(interp, "ExprLexer.interp"))
-input = "x = 1 + 2 * 3; y = (a - b) / c; z = a + b + c + d;"
+parser = Interp.load!(Path.join(interp, "JSON.interp"))
+lexer = Interp.load!(Path.join(interp, "JSONLexer.interp"))
+input = ~s({"name": "seed", "nums": [1, 2.5, -3e2], "ok": true, "x": {"a": null}})
 
 atn_words = :erts_debug.flat_size(parser.atn)
 
@@ -55,7 +55,7 @@ oneshot_pt = run.(shared, 1, 20_000)
 :persistent_term.erase({__MODULE__, :atn})
 
 IO.puts("""
-parse benchmark (Expr grammar)
+parse benchmark (JSON grammar)
   schedulers:     #{System.schedulers_online()}
   ATN flat size:  #{atn_words} words (~#{Float.round(atn_words * :erlang.system_info(:wordsize) / 1024, 1)} KiB)
 

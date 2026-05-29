@@ -22,6 +22,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 seed-*.tar
 
-# Cached ANTLR tool jar downloaded by scripts/gen_atn_fixtures.sh.
+# Cached ANTLR tool jar downloaded by scripts/gen_atn_fixtures.sh, and the
+# .antlr/ output the ANTLR IDE extensions generate next to .g4 files.
 /.antlr/
+.antlr/
 
