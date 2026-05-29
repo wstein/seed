@@ -1,0 +1,1 @@
+(prog (stat x = (expr (expr 1) + (expr (expr 2) * (expr 3))) ;) (stat y = (expr a) ;) <EOF>)

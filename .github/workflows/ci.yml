@@ -69,10 +69,13 @@ jobs:
       - name: Regenerate lexer token fixtures
         run: scripts/gen_lex_fixtures.sh
 
+      - name: Regenerate parse-tree fixtures
+        run: scripts/gen_parse_fixtures.sh
+
       - name: Fail on fixture drift
         run: |
           if ! git diff --quiet -- test/fixtures; then
-            echo "::error::Fixtures are out of date. Run scripts/gen_atn_fixtures.sh and scripts/gen_lex_fixtures.sh and commit the result."
+            echo "::error::Fixtures are out of date. Rerun the scripts/gen_*_fixtures.sh scripts and commit the result."
             git diff --stat -- test/fixtures
             exit 1
           fi
