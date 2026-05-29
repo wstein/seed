@@ -6,3 +6,23 @@ Record known risks, sharp edges, and debt that should stay visible.
 == Open Risks
 
 List the issues worth revisiting during planning and release reviews.
+
+== Known Gaps Against The Reference Runtimes
+
+Seed targets a large, useful subset of the ANTLR runtime; it is not yet at
+parity. The full status and the plan to close it live in
+xref:manual:feature-parity.adoc[Feature Parity And Roadmap]. The two gaps
+that are *architectural* rather than merely unfinished:
+
+* *Embedded actions* (`{...}`) and *custom semantic predicates* (`{...}?`)
+  are not executed. Seed interprets the ATN and cannot run the host-language
+  code these compile to, so a predicate cannot disambiguate alternatives and
+  an action has no effect. The planned remedy is caller-registered
+  predicate/action callbacks (and, for generated code, inlining them) — not a
+  change to the interpreter core.
+* *Off-channel token filtering* is absent: the parser's token stream drops
+  only `skip`-ed tokens, so a grammar that routes whitespace or comments to a
+  hidden channel (rather than `skip`) leaks those tokens to the parser.
+
+Neither has a workaround that should be hidden; both are tracked in the
+roadmap with their scope and ordering.

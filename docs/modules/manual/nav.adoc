@@ -1,1 +1,2 @@
 * xref:manual:index.adoc[Manual]
+** xref:manual:feature-parity.adoc[Feature Parity And Roadmap]

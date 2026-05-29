@@ -1,0 +1,171 @@
+= Feature Parity And Roadmap
+:page-layout: default
+
+Where Seed stands against the reference runtimes, and the plan to close the
+remaining gaps.
+
+== Short Answer
+
+*Parity is not yet reached.* Seed is a faithful, production-quality *runtime*
+for a large and useful subset of the ANTLR feature set, but several runtime
+features are still missing, and two of the gaps are *architectural*: as an
+ATN *interpreter*, Seed cannot execute the host-language code that embedded
+actions (`{...}`) and custom semantic predicates (`{...}?`) compile to.
+
+== What "Parity" Means Here
+
+Seed is a runtime, not a tool. It begins at the serialized grammar artifact
+and ends at the parse tree
+(xref:architecture:03-context-and-scope.adoc[Context And Scope]); grammar
+analysis, ATN construction, and `.g4` parsing stay with the ANTLR/antlr-ng
+*tool*. Parity is therefore measured against the reference *runtimes*.
+
+A useful simplification follows from
+xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]: the
+serialized ATN is **version 4** across ANTLR4, antlr-ng, and ANTLR5, and the
+prediction algorithm is unchanged between them. At the runtime contract Seed
+targets, the three references are effectively one. They differ in host
+language (Java / TypeScript / Kotlin) and in tool features, not in the
+runtime semantics Seed must match — so the matrix below uses a single
+*ANTLR reference runtime* column and calls out the rare divergence in notes.
+
+[]
+Legend: ✅ at parity · ◐ partial · ✗ missing (in scope) · ⊘ out of scope or
+N/A by design.
+
+== Feature Matrix
+
+=== Grammar artifact and compatibility
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| Serialized ATN v4 deserialization | ✅ | `Seed.ATNDeserializer`; the shared contract of ANTLR4/antlr-ng/ANTLR5.
+| `.interp` runtime loading | ✅ | `Seed.Interp` → `Seed.Grammar`. Seed-specific convenience; reference runtimes embed the ATN in generated source instead.
+| `.g4` parsing, grammar analysis, ATN construction | ⊘ | Out of scope — produced by the ANTLR/antlr-ng tool.
+|===
+
+=== Lexer
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| ATN simulation, longest match, rule-order tie-break | ✅ | `Seed.LexerATNSimulator`, validated against the reference token streams.
+| Modes (`mode` / `pushMode` / `popMode`) | ✅ | Mode stack in `Seed.Lexer`.
+| Channels (tagging tokens) | ✅ | `channel(...)` sets the token channel.
+| Commands: `skip`, `more`, `type`, `channel`, `mode`, `pushMode`, `popMode` | ✅ | `Seed.ATN.LexerActionExecutor`.
+| Custom embedded actions (`{...}`) | ✗ | Needs host code; currently a no-op (see Roadmap B).
+| Lexer semantic predicates (`{...}?`) | ✗ | Unsupported; raises during simulation.
+|===
+
+=== Token streams
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| Buffered stream, relative lookahead, seek | ✅ | `Seed.TokenStream`.
+| Off-channel filtering for the parser (`CommonTokenStream`) | ✗ | The stream drops only `skip`-ed tokens; tokens routed to a non-default channel (e.g. `channel(HIDDEN)`) still reach the parser (see Roadmap A).
+| `TokenStreamRewriter` | ✗ | Not implemented.
+|===
+
+=== Parser and prediction
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, full rule-invocation context (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]).
+| Left recursion / precedence climbing | ✅ | As a sub-rule and directly as the start rule.
+| Precedence predicates | ✅ | The precedence filter evaluates them.
+| Custom semantic predicates (`{...}?`) | ✗ | Collected into the configuration's `SemanticContext` but never evaluated, so they cannot disambiguate alternatives (see Roadmap B).
+| Embedded actions (`{...}`) | ✗ | No-op on the matched path.
+| SLL fast path with LL fallback | ✗ | Seed always predicts in full context — correct, but slower and less cacheable across call sites (see Roadmap D).
+| Decision memoization | ◐ | `Seed.DFACache` (ETS) memoizes start states and edges; it is a pure speedup, not the reference's persisted DFA edge structure.
+|===
+
+=== Parse tree
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| Rule-context tree, terminals, error nodes | ✅ | `Seed.ParserRuleContext`, `Seed.TerminalNode`, `Seed.ErrorNode`.
+| `toStringTree` | ✅ | `Seed.Trees`, validated against reference output.
+| Listener + walker | ✅ | `Seed.ParseTreeListener`, `Seed.ParseTreeWalker`.
+| Visitor | ✅ | `Seed.ParseTreeVisitor`.
+| Typed per-rule contexts, labeled alternatives, typed accessors | ✗ | Contexts are generic, keyed by `rule_index` (see Roadmap C).
+| XPath over trees | ✗ | Not implemented.
+| Tree pattern matching | ✗ | Not implemented.
+|===
+
+=== Errors and recovery
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| Structured diagnostics | ✅ | `Seed.Diagnostic` returned as values (xref:architecture:09-architecture-decisions.adoc#adr-003[ADR-003]).
+| Single-token deletion and insertion | ✅ | Insertion gated by an ATN reachability check so it cannot loop.
+| Panic-mode resynchronization (follow sets) | ✅ | For both a token mismatch and a no-viable-alternative decision.
+| Error nodes in the recovered tree | ✅ | Including a fabricated `<missing …>` token for an insertion.
+| Pluggable error strategy (e.g. `BailErrorStrategy`) | ✗ | A single built-in strategy (see Roadmap E).
+| Error listeners | ⊘ | By design — structured diagnostics-as-values serve the same tooling purpose (ADR-003).
+|===
+
+=== Code generation and host runtime
+
+[cols="3,2,5",options="header"]
+|===
+| Feature | Seed | Notes
+
+| Compile-time target module (`use Seed.Generated`) | ◐ | Bakes the grammar and emits named entry points, but is interpreter-backed — it does not generate per-rule methods or typed contexts (see Roadmap C).
+| Pure-functional, immutable, BEAM-native runtime | ✅ | A property the reference runtimes do not have (xref:architecture:09-architecture-decisions.adoc#adr-004[ADR-004]); Seed's distinctive strength.
+| Multi-target tool | ⊘ | N/A — Seed is one target's runtime, not the tool.
+|===
+
+== Implementation Plan
+
+Ordered by correctness impact first, then value. Each phase is independently
+shippable behind the project's quality gate (`make verify`).
+
+[cols="1,4,3",options="header"]
+|===
+| Phase | Work | Closes
+
+| A. Off-channel token stream
+| Filter non-default-channel tokens from the parser's `lt`/`la` (a
+  `CommonTokenStream` equivalent), keeping them addressable for tooling.
+| Correctness for grammars that route whitespace/comments to a hidden
+  channel rather than `skip`.
+
+| B. Predicate and action callbacks
+| Let the caller (and `Seed.Generated`) register functions keyed by
+  `{rule_index, pred_index}` / `{rule_index, action_index}`, and evaluate
+  registered predicates during conflict resolution / run registered actions
+  at action transitions (lexer and parser).
+| Custom semantic predicates and embedded actions — the largest semantic
+  gap — without abandoning the interpreter model.
+
+| C. Full Elixir codegen target
+| Extend `Seed.Generated` to emit typed per-rule context structs, labeled-
+  alternative accessors, and listener/visitor scaffolding, optionally inlining
+  predicates/actions as generated functions (subsumes B for generated code).
+| Typed contexts and an ergonomic, ANTLR-target-like generated API.
+
+| D. SLL-first prediction
+| Add a context-free SLL pass with full-context fallback on conflict, with a
+  DFA cacheable across call sites.
+| The main remaining performance gap (correctness is already validated).
+
+| E. Tooling parity
+| `TokenStreamRewriter`, tree XPath, tree pattern matching, and a pluggable
+  error strategy (`BailErrorStrategy`).
+| Convenience APIs that round out runtime parity.
+|===
+
+After A–C, Seed reaches functional parity for grammars that use embedded
+actions and predicates; D and E are performance and convenience. Grammar
+analysis and ATN construction remain permanently out of scope by design.
