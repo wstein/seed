@@ -35,9 +35,12 @@ Early development. The implemented and verified foundation is:
   reference parser's trees (see `test/fixtures/parse/`), including operator
   precedence.
 
-- **DFA cache** — `Seed.DFACache` memoizes the lexer's ATN decisions in a
-  supervised, bounded ETS table (ADR-005), keyed per grammar. It is a pure
-  speedup: results are identical with or without it.
+- **DFA cache** — `Seed.DFACache` memoizes ATN decisions in a supervised,
+  bounded ETS table (ADR-005), keyed per grammar. It is a pure speedup:
+  results are identical with or without it.
+- **Grammar loading** — `Seed.Interp` loads an ANTLR `.interp` file into a
+  `Seed.Grammar` (ATN + vocabulary + rule/channel/mode names), so a grammar
+  can be lexed and parsed at run time with no code generation.
 
 Full-context (LL) fallback for SLL-ambiguous grammars and the Elixir
 code-generation target are the next milestones — see the architecture docs

@@ -72,6 +72,9 @@ jobs:
       - name: Regenerate parse-tree fixtures
         run: scripts/gen_parse_fixtures.sh
 
+      - name: Regenerate interp fixtures
+        run: scripts/gen_interp_fixtures.sh
+
       - name: Fail on fixture drift
         run: |
           if ! git diff --quiet -- test/fixtures; then

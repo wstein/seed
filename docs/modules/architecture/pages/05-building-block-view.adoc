@@ -47,6 +47,9 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * `Seed.DFACache` and `Seed.Application` — a supervised, bounded ETS table
   memoizing the lexer's ATN decisions
   (xref:09-architecture-decisions.adoc#adr-005[ADR-005]); a pure speedup.
+* `Seed.Grammar` and `Seed.Interp` — a grammar's runtime metadata (ATN,
+  vocabulary, rule/channel/mode names) loaded from an ANTLR `.interp` file,
+  so a grammar can be parsed at run time with no code generation.
 
 === Planned
 
