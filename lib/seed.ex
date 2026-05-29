@@ -53,11 +53,15 @@ defmodule Seed do
   Parses `input` end to end: lex it with `lexer_grammar`, then parse from
   `start_rule_index` with `parser_grammar`.
 
-  Returns `{:ok, tree}` or `{:error, [Seed.Diagnostic.t()]}` from whichever
-  stage fails first.
+  Returns `{:ok, tree}` for well-formed input. A lexing failure returns
+  `{:error, diagnostics}`; a parsing failure returns `{:error, diagnostics,
+  tree}`, the partially recovered tree (with `Seed.ErrorNode` leaves) being
+  available since the parser always recovers.
   """
   @spec parse(Grammar.t(), Grammar.t(), binary(), non_neg_integer()) ::
-          {:ok, ParserRuleContext.t()} | {:error, [Diagnostic.t()]}
+          {:ok, ParserRuleContext.t()}
+          | {:error, [Diagnostic.t()]}
+          | {:error, [Diagnostic.t()], ParserRuleContext.t()}
   def parse(%Grammar{} = parser_grammar, %Grammar{atn: lexer_atn}, input, start_rule_index)
       when is_binary(input) do
     with {:ok, stream} <-

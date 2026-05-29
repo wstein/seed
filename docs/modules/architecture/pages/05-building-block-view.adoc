@@ -59,9 +59,13 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   vocabulary, rule/channel/mode names) loaded from an ANTLR `.interp` file,
   so a grammar can be parsed at run time with no code generation.
 * `Seed.Diagnostic` — a structured lex/parse problem (code, severity,
-  position, message); the lexer and parser return `{:ok, _} | {:error,
-  [diagnostic]}` at their public boundaries. The parser recovers from errors
-  at two levels, accumulating one diagnostic each:
+  position, message). The lexer returns `{:ok, tokens} | {:error,
+  [diagnostic]}`; the parser returns `{:ok, tree} | {:error, diagnostics,
+  tree}` — it always recovers, so the partial tree is returned alongside the
+  diagnostics, with `Seed.ErrorNode` leaves (including a fabricated `<missing
+  …>` token for an insertion) marking the recovery points, as ANTLR's
+  `ErrorNode` does. The parser recovers from errors at two levels,
+  accumulating one diagnostic each:
 +
 --
 ** *Single-token* — *deletion* of an extraneous token and *insertion* of a

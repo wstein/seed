@@ -9,6 +9,7 @@ defmodule Seed.Trees do
   does, so the output can be compared against the parse-tree fixtures.
   """
 
+  alias Seed.ErrorNode
   alias Seed.Grammar
   alias Seed.ParserRuleContext
   alias Seed.TerminalNode
@@ -23,13 +24,19 @@ defmodule Seed.Trees do
       iex> Seed.Trees.to_string_tree(tree, ["greeting"])
       "(greeting hi)"
   """
-  @spec to_string_tree(ParserRuleContext.t() | TerminalNode.t(), Grammar.t() | [String.t()]) ::
-          String.t()
+  @spec to_string_tree(
+          ParserRuleContext.t() | TerminalNode.t() | ErrorNode.t(),
+          Grammar.t() | [String.t()]
+        ) :: String.t()
   def to_string_tree(node, %Grammar{rule_names: rule_names}) do
     to_string_tree(node, rule_names)
   end
 
   def to_string_tree(%TerminalNode{symbol: token}, _rule_names) do
+    escape_whitespace(node_text(token))
+  end
+
+  def to_string_tree(%ErrorNode{symbol: token}, _rule_names) do
     escape_whitespace(node_text(token))
   end
 

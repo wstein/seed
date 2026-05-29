@@ -49,7 +49,7 @@ defmodule Seed.ParserInterpreterTest do
     {:ok, tokens} =
       lexer_grammar.atn |> Lexer.new(CharStream.new("hello")) |> TokenStream.from_lexer()
 
-    assert {:error, [%Seed.Diagnostic{code: :missing_token, message: message}]} =
+    assert {:error, [%Seed.Diagnostic{code: :missing_token, message: message}], _tree} =
              ParserInterpreter.parse(parser_grammar, tokens, 0)
 
     # The expected token is rendered by its vocabulary name, not its number.
@@ -66,7 +66,7 @@ defmodule Seed.ParserInterpreterTest do
     {:ok, tokens} =
       lexer_grammar.atn |> Lexer.new(CharStream.new("")) |> TokenStream.from_lexer()
 
-    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, message: message}]} =
+    assert {:error, [%Seed.Diagnostic{code: :token_mismatch, message: message}], _tree} =
              ParserInterpreter.parse(parser_grammar, tokens, 0)
 
     assert message =~ "hello"
@@ -80,7 +80,7 @@ defmodule Seed.ParserInterpreterTest do
     {:ok, tokens} =
       lexer.atn |> Lexer.new(CharStream.new("x x = 1 ; y y = 2 ;")) |> TokenStream.from_lexer()
 
-    assert {:error, diagnostics} = ParserInterpreter.parse(parser, tokens, 0)
+    assert {:error, diagnostics, _tree} = ParserInterpreter.parse(parser, tokens, 0)
     assert Enum.map(diagnostics, & &1.code) == [:extraneous_input, :extraneous_input]
   end
 
@@ -111,8 +111,30 @@ defmodule Seed.ParserInterpreterTest do
     {:ok, tokens} =
       lexer.atn |> Lexer.new(CharStream.new("x = 1 2 ; y y = 2 ;")) |> TokenStream.from_lexer()
 
-    assert {:error, diagnostics} = ParserInterpreter.parse(parser, tokens, 0)
+    assert {:error, diagnostics, _tree} = ParserInterpreter.parse(parser, tokens, 0)
     assert Enum.map(diagnostics, & &1.code) == [:no_viable_alternative, :extraneous_input]
+  end
+
+  test "attaches error nodes to the recovered tree" do
+    hello = Interp.load!(Path.join(@interp_dir, "Hello.interp"))
+    hello_lexer = Interp.load!(Path.join(@interp_dir, "HelloLexer.interp"))
+    expr = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    expr_lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
+
+    # An inserted token is a fabricated `<missing …>` error-node leaf.
+    {:ok, missing} =
+      hello_lexer.atn |> Lexer.new(CharStream.new("hello")) |> TokenStream.from_lexer()
+
+    assert {:error, _diagnostics, tree} = ParserInterpreter.parse(hello, missing, 0)
+    assert Trees.to_string_tree(tree, hello) == "(greeting hello <missing ID> <EOF>)"
+
+    # A token discarded during resynchronization is kept as an error node
+    # (here the stray "2" inside the expression it interrupted).
+    {:ok, discarded} =
+      expr_lexer.atn |> Lexer.new(CharStream.new("x = 1 2 ;")) |> TokenStream.from_lexer()
+
+    assert {:error, _, resynced} = ParserInterpreter.parse(expr, discarded, 0)
+    assert Trees.to_string_tree(resynced, expr) == "(prog (stat x = (expr 1 2) ;) <EOF>)"
   end
 
   test "parser predictions are memoized in the DFA cache" do

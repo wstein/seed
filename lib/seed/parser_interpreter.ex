@@ -27,10 +27,15 @@ defmodule Seed.ParserInterpreter do
   Parses `token_stream` starting at `start_rule_index`.
 
   Accepts a `Seed.Grammar` (using its ATN and vocabulary) or a bare
-  `Seed.ATN`, and returns `{:ok, tree}` or `{:error, [Seed.Diagnostic.t()]}`.
+  `Seed.ATN`. Returns `{:ok, tree}` for well-formed input, or
+  `{:error, diagnostics, tree}` when recovery was needed — the parser always
+  produces a complete tree (errors are recovered), so the partial tree, with
+  `Seed.ErrorNode` leaves marking the recovery points, is returned alongside
+  the diagnostics.
   """
   @spec parse(Grammar.t() | ATN.t(), TokenStream.t(), non_neg_integer()) ::
-          {:ok, ParserRuleContext.t()} | {:error, [Diagnostic.t()]}
+          {:ok, ParserRuleContext.t()}
+          | {:error, [Diagnostic.t()], ParserRuleContext.t()}
   def parse(
         %Grammar{atn: atn, vocabulary: vocabulary},
         %TokenStream{} = token_stream,
@@ -48,7 +53,7 @@ defmodule Seed.ParserInterpreter do
 
     case parser.diagnostics do
       [] -> {:ok, tree}
-      diagnostics -> {:error, diagnostics}
+      diagnostics -> {:error, diagnostics, tree}
     end
   end
 

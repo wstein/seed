@@ -3,12 +3,13 @@ defmodule Seed.ParserRuleContext do
   A node in the parse tree, representing one rule invocation.
 
   Mirroring ANTLR, the rule context *is* the tree node: it records which
-  rule it came from (`rule_index`) and its ordered `children`, each either a
-  nested `Seed.ParserRuleContext` or a `Seed.TerminalNode`. The parser
-  interpreter builds these as it walks the ATN.
+  rule it came from (`rule_index`) and its ordered `children`, each a nested
+  `Seed.ParserRuleContext`, a `Seed.TerminalNode`, or a `Seed.ErrorNode`
+  (a token involved in error recovery). The parser interpreter builds these
+  as it walks the ATN.
   """
 
-  @type child :: t() | Seed.TerminalNode.t()
+  @type child :: t() | Seed.TerminalNode.t() | Seed.ErrorNode.t()
   @type t :: %__MODULE__{
           rule_index: non_neg_integer(),
           children: [child()],

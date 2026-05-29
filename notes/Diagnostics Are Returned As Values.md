@@ -7,13 +7,16 @@ Seed surfaces lex and parse failures as structured `Seed.Diagnostic` values retu
 
 ## What
 
-`Seed.Lexer.tokenize/1` and `Seed.ParserInterpreter.parse/3` return
-`{:ok, result} | {:error, [Seed.Diagnostic.t()]}`. The lexer's hot path
-raises a `Seed.Lexer.Error` carrying a `%Seed.Diagnostic{}`, which the public
-boundary rescues into the error tuple. The parser no longer aborts: every
-error is recovered (see *How*), so it accumulates `%Seed.Diagnostic{}` values
-on its struct and the boundary returns them as `{:error, diagnostics}` when
-the input was not well-formed.
+`Seed.Lexer.tokenize/1` returns `{:ok, tokens} | {:error,
+[Seed.Diagnostic.t()]}`; its hot path raises a `Seed.Lexer.Error` carrying a
+`%Seed.Diagnostic{}`, which the public boundary rescues into the error tuple.
+`Seed.ParserInterpreter.parse/3` returns `{:ok, tree} | {:error,
+diagnostics, tree}`. The parser no longer aborts: every error is recovered
+(see *How*), so it always produces a complete tree and accumulates
+`%Seed.Diagnostic{}` values on its struct — the boundary returns both when
+the input was not well-formed. The recovered tree carries `Seed.ErrorNode`
+leaves at the recovery points (a deleted or discarded token, or a fabricated
+`<missing …>` token for an insertion), mirroring ANTLR's `ErrorNode`.
 
 ## Why
 

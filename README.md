@@ -49,15 +49,16 @@ Early development. The implemented and verified foundation is:
   Elixir target: it reads the `.interp` artifacts at compile time, bakes the
   grammars into the module, and emits named entry points (`parse/1`,
   `parse/2` by rule, and `parse_<rule>/1`) backed by the runtime.
-- **Diagnostics & recovery** — `Seed.Lexer.tokenize/1` and
-  `Seed.ParserInterpreter.parse/3` return `{:ok, result} | {:error,
-  [Seed.Diagnostic.t()]}`; a diagnostic carries a machine-readable code,
-  severity, and source position, and mismatch messages name the expected
-  token from the grammar's vocabulary. The parser recovers from errors so
-  one parse reports a diagnostic per error rather than stopping at the first:
-  single-token deletion/insertion (insertion gated by an ATN reachability
-  check so it cannot loop), and panic-mode resynchronization to a rule's
-  follow set when neither applies.
+- **Diagnostics & recovery** — `Seed.Lexer.tokenize/1` returns `{:ok,
+  tokens} | {:error, [Seed.Diagnostic.t()]}`; `Seed.ParserInterpreter.parse/3`
+  returns `{:ok, tree} | {:error, diagnostics, tree}`. A diagnostic carries a
+  machine-readable code, severity, and source position, and mismatch messages
+  name the expected token from the grammar's vocabulary. The parser always
+  recovers — single-token deletion/insertion (insertion gated by an ATN
+  reachability check so it cannot loop) and panic-mode resynchronization to a
+  rule's follow set — so one parse reports a diagnostic per error and still
+  returns a complete tree, with `Seed.ErrorNode` leaves (including `<missing
+  …>` for inserted tokens) marking the recovery points just as ANTLR does.
 
 Recognizer base behaviours and a tree walker are the next milestones — see
 the architecture docs for the full roadmap.

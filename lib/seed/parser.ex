@@ -21,6 +21,7 @@ defmodule Seed.Parser do
   alias Seed.ATN.State
   alias Seed.ATN.Transition
   alias Seed.Diagnostic
+  alias Seed.ErrorNode
   alias Seed.ParserRuleContext
   alias Seed.TerminalNode
   alias Seed.Token
@@ -172,8 +173,8 @@ defmodule Seed.Parser do
     %{parser | diagnostics: parser.diagnostics ++ [diagnostic]}
   end
 
-  # Reports the current token as extraneous, drops it, and matches the
-  # expected token that follows.
+  # Reports the current token as extraneous, attaches it to the tree as an
+  # error node, drops it, and matches the expected token that follows.
   defp delete_extraneous_token(parser, token) do
     diagnostic =
       Diagnostic.error(:extraneous_input, "extraneous input #{describe(token)}",
@@ -183,6 +184,7 @@ defmodule Seed.Parser do
 
     parser
     |> add_diagnostic(diagnostic)
+    |> add_child(ErrorNode.new(token))
     |> Map.update!(:input, &TokenStream.consume/1)
     |> consume()
   end
@@ -212,18 +214,24 @@ defmodule Seed.Parser do
     end)
   end
 
-  # Reports the expected token as missing and continues *without* consuming,
-  # so the current (real) token is matched next.
+  # Reports the expected token as missing, attaches a fabricated `<missing …>`
+  # error node in its place, and continues *without* consuming, so the
+  # current (real) token is matched next.
   defp insert_missing_token(parser, token, expected_type) do
+    name = Vocabulary.display_name(parser.vocabulary, expected_type)
+
     diagnostic =
-      Diagnostic.error(
-        :missing_token,
-        "missing #{Vocabulary.display_name(parser.vocabulary, expected_type)} at #{describe(token)}",
+      Diagnostic.error(:missing_token, "missing #{name} at #{describe(token)}",
         line: token.line,
         column: token.column
       )
 
-    add_diagnostic(parser, diagnostic)
+    missing =
+      Token.new(expected_type, text: "<missing #{name}>", line: token.line, column: token.column)
+
+    parser
+    |> add_diagnostic(diagnostic)
+    |> add_child(ErrorNode.new(missing))
   end
 
   # Walks the epsilon-closure of `state` (epsilon, rule, action, predicate,
@@ -295,7 +303,10 @@ defmodule Seed.Parser do
     if in_recovery_set?(parser, TokenStream.la(parser.input, 1)) do
       parser
     else
-      parser |> Map.update!(:input, &TokenStream.consume/1) |> consume_until_recovery()
+      parser
+      |> add_child(ErrorNode.new(TokenStream.lt(parser.input, 1)))
+      |> Map.update!(:input, &TokenStream.consume/1)
+      |> consume_until_recovery()
     end
   end
 

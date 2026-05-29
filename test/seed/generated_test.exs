@@ -45,6 +45,6 @@ defmodule Seed.GeneratedTest do
   end
 
   test "error recovery flows through the generated entry points" do
-    assert {:error, [%Seed.Diagnostic{} | _]} = Expr.parse("x x = 1 ;")
+    assert {:error, [%Seed.Diagnostic{} | _], _tree} = Expr.parse("x x = 1 ;")
   end
 end
