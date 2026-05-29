@@ -1,0 +1,7 @@
+[
+  {"type": 1, "text": "hello", "line": 1, "column": 0, "start": 0, "stop": 4, "channel": 0},
+  {"type": 2, "text": "world", "line": 1, "column": 6, "start": 6, "stop": 10, "channel": 0},
+  {"type": 1, "text": "hello", "line": 2, "column": 0, "start": 12, "stop": 16, "channel": 0},
+  {"type": 2, "text": "abc", "line": 2, "column": 6, "start": 18, "stop": 20, "channel": 0},
+  {"type": -1, "text": "<EOF>", "line": 2, "column": 9, "start": 21, "stop": 20, "channel": 0}
+]

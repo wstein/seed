@@ -49,7 +49,7 @@ jobs:
         run: make verify
 
   atn-fixtures-drift:
-    name: ATN fixture drift gate
+    name: Fixture drift gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -66,11 +66,14 @@ jobs:
       - name: Regenerate serialized-ATN fixtures
         run: scripts/gen_atn_fixtures.sh
 
+      - name: Regenerate lexer token fixtures
+        run: scripts/gen_lex_fixtures.sh
+
       - name: Fail on fixture drift
         run: |
-          if ! git diff --quiet -- test/fixtures/atn; then
-            echo "::error::Serialized-ATN fixtures are out of date. Run scripts/gen_atn_fixtures.sh and commit the result."
-            git diff --stat -- test/fixtures/atn
+          if ! git diff --quiet -- test/fixtures; then
+            echo "::error::Fixtures are out of date. Run scripts/gen_atn_fixtures.sh and scripts/gen_lex_fixtures.sh and commit the result."
+            git diff --stat -- test/fixtures
             exit 1
           fi
           echo "Fixtures match the canonical ANTLR4 output."

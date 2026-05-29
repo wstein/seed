@@ -1,0 +1,21 @@
+[
+  {"type": 9, "text": "x", "line": 1, "column": 0, "start": 0, "stop": 0, "channel": 0},
+  {"type": 1, "text": "=", "line": 1, "column": 2, "start": 2, "stop": 2, "channel": 0},
+  {"type": 10, "text": "1", "line": 1, "column": 4, "start": 4, "stop": 4, "channel": 0},
+  {"type": 5, "text": "+", "line": 1, "column": 6, "start": 6, "stop": 6, "channel": 0},
+  {"type": 10, "text": "2", "line": 1, "column": 8, "start": 8, "stop": 8, "channel": 0},
+  {"type": 3, "text": "*", "line": 1, "column": 10, "start": 10, "stop": 10, "channel": 0},
+  {"type": 10, "text": "30", "line": 1, "column": 12, "start": 12, "stop": 13, "channel": 0},
+  {"type": 2, "text": ";", "line": 1, "column": 14, "start": 14, "stop": 14, "channel": 0},
+  {"type": 9, "text": "y", "line": 2, "column": 0, "start": 16, "stop": 16, "channel": 0},
+  {"type": 1, "text": "=", "line": 2, "column": 2, "start": 18, "stop": 18, "channel": 0},
+  {"type": 7, "text": "(", "line": 2, "column": 4, "start": 20, "stop": 20, "channel": 0},
+  {"type": 9, "text": "a", "line": 2, "column": 5, "start": 21, "stop": 21, "channel": 0},
+  {"type": 6, "text": "-", "line": 2, "column": 6, "start": 22, "stop": 22, "channel": 0},
+  {"type": 9, "text": "b", "line": 2, "column": 7, "start": 23, "stop": 23, "channel": 0},
+  {"type": 8, "text": ")", "line": 2, "column": 8, "start": 24, "stop": 24, "channel": 0},
+  {"type": 4, "text": "/", "line": 2, "column": 9, "start": 25, "stop": 25, "channel": 0},
+  {"type": 9, "text": "c", "line": 2, "column": 10, "start": 26, "stop": 26, "channel": 0},
+  {"type": 2, "text": ";", "line": 2, "column": 11, "start": 27, "stop": 27, "channel": 0},
+  {"type": -1, "text": "<EOF>", "line": 2, "column": 12, "start": 28, "stop": 27, "channel": 0}
+]
