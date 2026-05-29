@@ -31,9 +31,10 @@ Early development. The implemented and verified foundation is:
   (see `test/fixtures/lex/`).
 - **Parser** — `Seed.ParserATNSimulator` (adaptive LL(\*) prediction with
   the precedence filter) and `Seed.ParserInterpreter` build a parse tree by
-  walking the ATN, including left-recursive rules. Validated against the
-  reference parser's trees (see `test/fixtures/parse/`), including operator
-  precedence.
+  walking the ATN, including left-recursive rules. `parse/3` accepts a
+  `Seed.Grammar` (or a bare ATN), and `Seed.Trees` renders the tree with the
+  grammar's rule names. Validated against the reference parser's trees (see
+  `test/fixtures/parse/`), including operator precedence.
 
 - **DFA cache** — `Seed.DFACache` memoizes ATN decisions in a supervised,
   bounded ETS table (ADR-005), keyed per grammar. It is a pure speedup:

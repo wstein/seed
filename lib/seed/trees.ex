@@ -9,19 +9,26 @@ defmodule Seed.Trees do
   does, so the output can be compared against the parse-tree fixtures.
   """
 
+  alias Seed.Grammar
   alias Seed.ParserRuleContext
   alias Seed.TerminalNode
 
   @doc """
-  Returns the LISP-style string for `tree`, looking rule names up by index
-  in `rule_names`.
+  Returns the LISP-style string for `tree`.
+
+  Rule names come from a `Seed.Grammar` or an explicit rule-name list.
 
       iex> tree = Seed.ParserRuleContext.new(0) |> Seed.ParserRuleContext.add_child(
       ...>   Seed.TerminalNode.new(Seed.Token.new(1, text: "hi")))
       iex> Seed.Trees.to_string_tree(tree, ["greeting"])
       "(greeting hi)"
   """
-  @spec to_string_tree(ParserRuleContext.t() | TerminalNode.t(), [String.t()]) :: String.t()
+  @spec to_string_tree(ParserRuleContext.t() | TerminalNode.t(), Grammar.t() | [String.t()]) ::
+          String.t()
+  def to_string_tree(node, %Grammar{rule_names: rule_names}) do
+    to_string_tree(node, rule_names)
+  end
+
   def to_string_tree(%TerminalNode{symbol: token}, _rule_names) do
     escape_whitespace(node_text(token))
   end

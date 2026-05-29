@@ -1,48 +1,39 @@
 defmodule Seed.ParserInterpreterTest do
   use ExUnit.Case, async: true
 
-  alias Seed.ATNDeserializer
   alias Seed.CharStream
+  alias Seed.Interp
   alias Seed.Lexer
   alias Seed.ParserInterpreter
   alias Seed.TokenStream
   alias Seed.Trees
 
-  @atn_dir Path.expand("../fixtures/atn", __DIR__)
+  @interp_dir Path.expand("../fixtures/interp", __DIR__)
   @parse_dir Path.expand("../fixtures/parse", __DIR__)
 
-  # Each grammar's start rule, rule names, and the fixture base name.
+  # Grammars are loaded from their .interp files, so rule names come from the
+  # grammar rather than being hardcoded here.
   @cases [
-    %{name: "hello", start_rule: 0, rule_names: ~w(greeting)},
-    %{name: "expr", start_rule: 0, rule_names: ~w(prog stat expr)}
+    %{name: "hello", grammar: "Hello", start_rule: 0},
+    %{name: "expr", grammar: "Expr", start_rule: 0}
   ]
 
   for fixture <- @cases do
     test "#{fixture.name}: parse tree matches the reference parser" do
-      %{name: name, start_rule: start_rule, rule_names: rule_names} =
-        unquote(Macro.escape(fixture))
+      %{name: name, grammar: grammar, start_rule: start_rule} = unquote(Macro.escape(fixture))
 
-      tree = parse(name, start_rule)
-      assert Trees.to_string_tree(tree, rule_names) == expected(name)
+      parser_grammar = Interp.load!(Path.join(@interp_dir, grammar <> ".interp"))
+      tokens = tokenize(grammar, name)
+      tree = ParserInterpreter.parse(parser_grammar, tokens, start_rule)
+
+      assert Trees.to_string_tree(tree, parser_grammar) == expected(name)
     end
   end
 
-  defp parse(name, start_rule) do
-    parser_atn = load_atn("#{name}_parser")
-    lexer_atn = load_atn("#{name}_lexer")
+  defp tokenize(grammar, name) do
+    lexer_grammar = Interp.load!(Path.join(@interp_dir, grammar <> "Lexer.interp"))
     input = @parse_dir |> Path.join("#{name}.input") |> File.read!() |> CharStream.new()
-    tokens = lexer_atn |> Lexer.new(input) |> TokenStream.from_lexer()
-    ParserInterpreter.parse(parser_atn, tokens, start_rule)
-  end
-
-  defp load_atn(name) do
-    @atn_dir
-    |> Path.join("#{name}.atn")
-    |> File.read!()
-    |> String.trim()
-    |> String.split(",")
-    |> Enum.map(&String.to_integer/1)
-    |> ATNDeserializer.deserialize!()
+    lexer_grammar.atn |> Lexer.new(input) |> TokenStream.from_lexer()
   end
 
   defp expected(name) do

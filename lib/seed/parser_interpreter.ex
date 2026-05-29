@@ -15,6 +15,7 @@ defmodule Seed.ParserInterpreter do
 
   alias Seed.ATN
   alias Seed.ATN.State
+  alias Seed.Grammar
   alias Seed.Parser
   alias Seed.ParserATNSimulator
   alias Seed.ParserRuleContext
@@ -22,8 +23,14 @@ defmodule Seed.ParserInterpreter do
 
   @doc """
   Parses `token_stream` starting at `start_rule_index`, returning the tree.
+
+  Accepts a `Seed.Grammar` (using its ATN) or a bare `Seed.ATN`.
   """
-  @spec parse(ATN.t(), TokenStream.t(), non_neg_integer()) :: ParserRuleContext.t()
+  @spec parse(Grammar.t() | ATN.t(), TokenStream.t(), non_neg_integer()) :: ParserRuleContext.t()
+  def parse(%Grammar{atn: atn}, %TokenStream{} = token_stream, start_rule_index) do
+    parse(atn, token_stream, start_rule_index)
+  end
+
   def parse(%ATN{} = atn, %TokenStream{} = token_stream, start_rule_index) do
     parser = Parser.new(atn, token_stream)
     start_number = Enum.at(atn.rule_to_start_state, start_rule_index)
