@@ -5,4 +5,35 @@ Summarize the big architectural moves that answer the goals and constraints.
 
 == Core Approach
 
-Describe the main design strategy in a few direct points.
+* *Port the runtime, reuse the tool.* Seed implements the BEAM runtime and
+  an Elixir code-generation target; it does not reimplement the grammar
+  tool (xref:09-architecture-decisions.adoc#adr-001[ADR-001]).
+* *Make the serialized ATN the contract.* The runtime deserializes the
+  tool's integer stream, which lets the existing ANTLR grammar corpus serve
+  as a conformance oracle
+  (xref:09-architecture-decisions.adoc#adr-002[ADR-002]).
+* *Two layers: idiomatic facade, faithful core.* A native-feeling Elixir
+  API wraps a prediction engine that is transliterated faithfully from the
+  reference runtime so it can be validated decision-for-decision
+  (xref:09-architecture-decisions.adoc#adr-003[ADR-003]).
+* *Parse as a pure function.* Lexers and parsers are plain modules; the
+  caller owns concurrency and isolation
+  (xref:09-architecture-decisions.adoc#adr-004[ADR-004]).
+* *Use BEAM-native storage for caches.* The static ATN lives in
+  `:persistent_term`; the adaptive DFA cache lives in bounded `ETS`
+  (xref:09-architecture-decisions.adoc#adr-005[ADR-005]).
+
+== Build Order
+
+The runtime is built bottom-up, each layer verifiable on its own:
+
+1. *Tokens and streams* — `Seed.Token`, `Seed.Vocabulary`,
+   `Seed.CharStream`, `Seed.TokenStream`. *(Implemented.)*
+2. *ATN data model and deserializer* — read and round-trip the serialized
+   integer stream against golden fixtures.
+3. *Prediction core* — prediction context, configuration sets,
+   transitions, DFA.
+4. *Simulators* — the lexer ATN simulator, then the parser (adaptive
+   LL(*)) ATN simulator, validated against the reference runtime.
+5. *Recognizer, lexer, parser bases*, error handling, and tree walking.
+6. *Elixir code-generation target* and the end-to-end grammar milestone.

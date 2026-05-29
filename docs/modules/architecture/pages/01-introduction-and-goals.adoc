@@ -1,13 +1,33 @@
 = Introduction And Goals
 :page-layout: default
 
-Describe why `myproject` exists, who it serves, and what success looks
-like.
+Seed is an ANTLR4 parser runtime for the BEAM, written in idiomatic
+Elixir. It enables grammars authored in ANTLR's `.g4` notation to drive
+lexers and parsers that run natively on the Erlang VM.
 
 == Business Or Product Goals
 
-Capture the outcomes this system must enable.
+* Bring ANTLR4's mature parsing technology to Elixir and Erlang projects
+  without shelling out to the JVM at run time.
+* Stay compatible with the existing ANTLR ecosystem by consuming the same
+  serialized grammar artifacts the canonical tool already produces.
+* Present an Elixir-native API so that generated parsers feel at home in a
+  functional, pattern-matching codebase.
+
+== Quality Goals
+
+* *Correctness* — parsing decisions match the reference ANTLR4 runtime,
+  validated against its grammar corpus.
+* *Idiomatic fit* — the public surface uses structs, behaviours, and
+  `{:ok, _} | {:error, _}` results rather than transliterated Java.
+* *Resilience* — bounded resource use under adversarial input, suiting
+  parsers exposed to untrusted text.
 
 == Stakeholders
 
-List the key users, operators, and maintainers the architecture must support.
+* *Elixir/Erlang application developers* who need to parse domain-specific
+  or general-purpose languages on the BEAM.
+* *Grammar authors* who already maintain `.g4` grammars and want a BEAM
+  target.
+* *Seed maintainers* who port and validate the runtime against the
+  reference implementation.

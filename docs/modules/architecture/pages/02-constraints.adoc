@@ -5,8 +5,27 @@ Document the decisions and external conditions the architecture must honor.
 
 == Technical Constraints
 
-Record platform, runtime, or integration boundaries.
+* *Target platform* — Elixir `~> 1.19` on Erlang/OTP 28. Seed runs on the
+  BEAM and uses only BEAM-native facilities (no native NIF in v1; see
+  xref:09-architecture-decisions.adoc#adr-006[ADR-006]).
+* *Serialized ATN compatibility* — Seed must read the serialized ATN
+  format emitted by the ANTLR tool and track its serialization version
+  (xref:09-architecture-decisions.adoc#adr-002[ADR-002]).
+* *Functional execution model* — the BEAM provides immutable data and no
+  shared mutable arrays. The design accommodates this with
+  `:persistent_term` for the static ATN and `ETS` for the adaptive cache
+  (xref:09-architecture-decisions.adoc#adr-005[ADR-005]).
+* *Performance profile* — integer-heavy ATN simulation is slower on the
+  BEAM than on the JVM or Go. Single-parse throughput is a documented
+  tradeoff against concurrent-parse isolation.
 
 == Organizational Constraints
 
-Record team, compliance, or release-process limits that shape the design.
+* *Reuse over rewrite* — the upstream ANTLR tool is reused unchanged; Seed
+  owns only the runtime and the Elixir code-generation target
+  (xref:09-architecture-decisions.adoc#adr-001[ADR-001]).
+* *Quality gate* — every change passes `make verify`
+  (`mix format --check-formatted`, tests, and a clean compile) before it
+  is committed.
+* *Documentation discipline* — `docs/` and `notes/` are authored by hand
+  and kept current with the implementation; they are not generated.

@@ -5,4 +5,28 @@ Describe the major subsystems, modules, or services.
 
 == Top-Level Structure
 
-List the main building blocks and why they exist.
+Seed is a single Elixir library application (`:seed`) whose modules form
+the runtime. The building blocks below mirror the build order in
+xref:04-solution-strategy.adoc[Solution Strategy].
+
+=== Implemented
+
+* `Seed` — top-level facade and project entry point.
+* `Seed.Token` — the token value (type, text, source positions, channel)
+  and the well-known token-type constants (`EOF`, invalid type).
+* `Seed.Vocabulary` — the mapping from integer token types to literal,
+  symbolic, and display names, used for diagnostics and tree rendering.
+* `Seed.CharStream` — an immutable character input stream over a UTF-8
+  binary, offering lookahead, consume, mark/seek, and text extraction.
+* `Seed.TokenStream` — an in-memory buffer of tokens with positional
+  lookahead, the bridge between a lexer's output and a parser's input.
+
+=== Planned
+
+* *ATN layer* — the ATN data model, the deserializer for the serialized
+  integer stream, transitions, prediction context, and DFA.
+* *Simulators* — the lexer and parser (adaptive LL(*)) ATN simulators.
+* *Recognizer bases* — lexer and parser base behaviours, error listeners
+  and recovery strategy, parse-tree nodes, and the tree walker.
+* *Code generation* — the Elixir target that turns a grammar into a Seed
+  parser module.

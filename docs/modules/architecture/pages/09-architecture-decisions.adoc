@@ -5,4 +5,121 @@ Capture the architectural choices that deserve durable context.
 
 == Decision Log
 
-Summarize the most important accepted or pending decisions.
+The decisions below shape how Seed ports ANTLR4 to the BEAM. Each is
+recorded as a lightweight ADR: context, the decision, and its
+consequences.
+
+[#adr-001]
+=== ADR-001: Reuse the ANTLR tool; port only the runtime
+
+*Status:* Accepted
+
+*Context:* ANTLR4 separates the grammar *tool* (the code generator) from
+the per-language *runtime*. The tool runs at build time and its output is
+language-neutral. Re-implementing the tool in Elixir would reproduce the
+ATN construction and adaptive LL(*) analysis — the most intricate part of
+the project — with no user-facing benefit.
+
+*Decision:* Seed implements a BEAM *runtime* and an Elixir
+code-generation target only. The grammar tool (canonical ANTLR4, or
+antlr-ng) is reused unchanged.
+
+*Consequences:* Dramatically smaller scope. Seed tracks the tool's output
+format rather than its internals. The choice of which tool authors the
+Elixir target is deferred to the code-generation milestone; the runtime is
+tool-agnostic because it consumes serialized output (see <<adr-002>>).
+
+[#adr-002]
+=== ADR-002: The serialized ATN is the contract
+
+*Status:* Accepted
+
+*Context:* The ANTLR tool serializes a grammar's ATN to a flat array of
+integers. Every runtime deserializes and simulates that array. The format
+is stable and identical across the canonical tool and antlr-ng.
+
+*Decision:* Seed treats the serialized ATN integer stream as its contract
+with the tool. It deserializes that stream and never reconstructs an ATN
+from a grammar.
+
+*Consequences:* The existing ANTLR grammar corpus becomes a ready-made
+conformance oracle — any grammar the tool can serialize, Seed can attempt
+to run, and decisions can be diffed against the reference runtime. Seed
+must track the serialization version the tool emits.
+
+[#adr-003]
+=== ADR-003: Idiomatic at the edges, faithful at the core
+
+*Status:* Accepted
+
+*Context:* ANTLR's reference runtime is aggressively object-oriented:
+inheritance, listener/visitor classes, exceptions for control flow, and
+mutable simulator state. A literal transliteration would feel foreign on
+the BEAM; an unconstrained re-imagining of the prediction engine would
+have no oracle to validate against.
+
+*Decision:* The public API is idiomatic Elixir — structs, behaviours,
+pattern matching, and `{:ok, result} | {:error, reason}` results. The
+prediction-engine internals (the ATN simulators, prediction context, and
+configuration-set merging) remain a faithful transliteration of the
+reference runtime.
+
+*Consequences:* "Idiomatic" stops at the facade. Creativity is forbidden
+in the prediction core, where it would produce undetectable parsing bugs.
+Code generation that uses Elixir macros must still emit inspectable source
+so the generated parsers remain debuggable.
+
+[#adr-004]
+=== ADR-004: Pure functions, not processes, for parsing
+
+*Status:* Accepted
+
+*Context:* A parse is a deterministic transformation of tokens into a tree.
+Wrapping a parser in a `GenServer` would add a mailbox bottleneck and
+hidden state without benefit.
+
+*Decision:* Lexers and parsers are plain modules and functions with no
+process identity. Concurrency and per-parse isolation are the caller's
+concern, achieved by running parses inside the caller's own processes.
+
+*Consequences:* Parsing stays referentially transparent and trivially
+testable. The BEAM's strength — many isolated concurrent parses — is
+available to callers without Seed imposing a process model.
+
+[#adr-005]
+=== ADR-005: ETS for the adaptive DFA cache; persistent_term for the static ATN
+
+*Status:* Accepted
+
+*Context:* Adaptive LL(*) performance depends on a mutable DFA cache that
+grows as the parser observes new lookahead, while the deserialized ATN
+itself is large and immutable. The BEAM has no shared mutable maps by
+default; naive choices either lose cross-parse memoization or serialize
+all predictions through one process.
+
+*Decision:* Store the static, immutable ATN in `:persistent_term` for
+zero-copy concurrent reads. Hold the adaptive DFA cache in `ETS`, bounded
+and evictable to prevent unbounded growth under adversarial input.
+
+*Consequences:* Cross-parse memoization is preserved without a process
+bottleneck. The cache bound is a deliberate denial-of-service mitigation.
+`:persistent_term` is used only for the static ATN — never for
+per-parse data — because writes to it trigger a global GC.
+
+[#adr-006]
+=== ADR-006: Defer native acceleration (NIF) until measured
+
+*Status:* Accepted
+
+*Context:* The BEAM is slower than Go or the JVM on the tight,
+integer-heavy loops of ATN simulation. A Rust NIF for the hot path would
+recover speed but would mean Seed is not truly a BEAM port, and it would
+break single-command installation and deterministic builds.
+
+*Decision:* Seed v1 is pure Elixir. A native NIF for the prediction core
+is an explicit, opt-in escape hatch reserved for v2, gated on real
+benchmarks rather than speculation.
+
+*Consequences:* Installation stays `mix`-simple. Single-parse throughput
+is a documented tradeoff; concurrent-parse isolation is the compensating
+strength.

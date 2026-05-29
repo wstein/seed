@@ -5,8 +5,32 @@ Explain the system boundary and the most important external interactions.
 
 == Business Context
 
-Describe the surrounding process or product boundary.
+Seed sits between two parties:
+
+* *Grammar authors and the ANTLR tool* produce, at build time, a serialized
+  grammar (the ATN integer stream plus generated parser/lexer source).
+* *Elixir applications* consume Seed at run time to turn input text into
+  tokens and parse trees.
+
+Seed's responsibility begins at the serialized grammar artifact and ends
+at the parse tree it returns to the application. It does not analyze
+grammars or generate ATNs — that is the tool's job.
 
 == Technical Context
 
-List external systems, data flows, and interfaces.
+* *Input (build time)* — the serialized ATN and generated source emitted by
+  the ANTLR tool (canonical ANTLR4 or antlr-ng). This is the contract
+  boundary (xref:09-architecture-decisions.adoc#adr-002[ADR-002]).
+* *Input (run time)* — character text supplied by the calling application
+  through `Seed.CharStream`.
+* *Output* — tokens (`Seed.Token`), and ultimately a parse tree, returned
+  to the application as plain Elixir values.
+* *Validation oracle* — the reference ANTLR4 runtime, used to diff parsing
+  decisions for the same grammar and input.
+
+== Out Of Scope
+
+* Grammar analysis, ATN construction, and adaptive-LL(*) decision
+  *computation* at the tool level.
+* A networked or stateful service; Seed is a library of pure functions
+  (xref:09-architecture-decisions.adoc#adr-004[ADR-004]).
