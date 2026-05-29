@@ -104,6 +104,10 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   classes. (ANTLR's *error listeners* have no counterpart: Seed reports
   problems as `Seed.Diagnostic` values, per
   xref:09-architecture-decisions.adoc#adr-003[ADR-003].)
+* `Seed.XPath` — locates tree nodes with an XPath-like query (`/`, `//`,
+  rule/token/literal names, `*`, `!`), resolved against the grammar.
+* `Seed.TokenStreamRewriter` — immutable insert/replace/delete edits over
+  token positions, rendered back to text with `text/1`.
 
 === Planned
 

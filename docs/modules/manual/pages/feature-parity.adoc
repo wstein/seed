@@ -97,8 +97,8 @@ N/A by design.
 | Listener + walker | ✅ | `Seed.ParseTreeListener`, `Seed.ParseTreeWalker`.
 | Visitor | ✅ | `Seed.ParseTreeVisitor`.
 | Typed per-rule contexts, labeled alternatives, typed accessors | ✗ | Contexts are generic, keyed by `rule_index` (see Roadmap C).
-| XPath over trees | ✗ | Not implemented.
-| Tree pattern matching | ✗ | Not implemented.
+| XPath over trees | ✅ | `Seed.XPath.find/3` — `/`, `//`, rule/token/literal names, `*`, and `!` inversion, resolved against the grammar.
+| Tree pattern matching | ✗ | Not implemented (see Roadmap E).
 |===
 
 === Errors and recovery
