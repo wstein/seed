@@ -42,8 +42,9 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 * `Seed.ATN.PredictionContext` (array form + merge), `Seed.ATN.SemanticContext`,
   `Seed.ATN.ParserATNConfigSet` (context-merging), and `Seed.ATN.PredictionMode`
   — the parser prediction data layer.
-* `Seed.ParserATNSimulator` — adaptive LL(*) prediction (SLL stage) with the
-  left-recursion precedence filter, without the DFA cache.
+* `Seed.ParserATNSimulator` — adaptive LL(*) prediction using the full
+  rule-invocation context (so context-sensitive decisions resolve
+  correctly), with the left-recursion precedence filter.
 * `Seed.Parser` and `Seed.ParserInterpreter` — the ATN-walking tree builder,
   including left-recursion. Validated against the reference parser's trees.
 * `Seed.DFACache` and `Seed.Application` — a supervised, bounded ETS table
@@ -58,7 +59,10 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 
 === Planned
 
-* *Full-context (LL) fallback* — for grammars that are ambiguous under SLL.
+* *Error recovery* — accumulate multiple diagnostics per parse.
+* *SLL-first optimization* — a context-free fast path with full-context
+  fallback, for DFA cacheability across call sites (performance, not
+  correctness).
 * *Code generation* — the Elixir target that emits a parser from a grammar.
 * *Recognizer bases* — lexer and parser base behaviours, error listeners
   and recovery strategy, parse-tree nodes, and the tree walker.

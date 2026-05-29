@@ -31,10 +31,12 @@ Early development. The implemented and verified foundation is:
   (see `test/fixtures/lex/`).
 - **Parser** — `Seed.ParserATNSimulator` (adaptive LL(\*) prediction with
   the precedence filter) and `Seed.ParserInterpreter` build a parse tree by
-  walking the ATN, including left-recursive rules. `parse/3` accepts a
-  `Seed.Grammar` (or a bare ATN), and `Seed.Trees` renders the tree with the
-  grammar's rule names. Validated against the reference parser's trees (see
-  `test/fixtures/parse/`), including operator precedence.
+  walking the ATN, including left-recursive rules. Prediction uses the full
+  rule-invocation context, so context-sensitive decisions are resolved
+  correctly. `parse/3` accepts a `Seed.Grammar` (or a bare ATN), and
+  `Seed.Trees` renders the tree with the grammar's rule names. Validated
+  against the reference parser's trees (see `test/fixtures/parse/`),
+  including operator precedence and a context-sensitive grammar.
 
 - **DFA cache** — `Seed.DFACache` memoizes ATN decisions in a supervised,
   bounded ETS table (ADR-005), keyed per grammar. It is a pure speedup:
@@ -47,7 +49,7 @@ Early development. The implemented and verified foundation is:
   carries a machine-readable code, severity, and source position, and
   mismatch messages name the expected token from the grammar's vocabulary.
 
-Full-context (LL) fallback for SLL-ambiguous grammars and the Elixir
+Error recovery (accumulating multiple diagnostics) and the Elixir
 code-generation target are the next milestones — see the architecture docs
 for the full roadmap.
 

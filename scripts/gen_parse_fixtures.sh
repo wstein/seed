@@ -39,21 +39,24 @@ fi
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-for grammar in Hello Expr; do
+for grammar in Hello Expr Ctx; do
   cp "$grammars/$grammar.g4" "$workdir/"
 done
 cp scripts/ParseDump.java "$workdir/"
 
-( cd "$workdir" && java -jar "$ANTLR_JAR" -Dlanguage=Java Hello.g4 Expr.g4 )
+( cd "$workdir" && java -jar "$ANTLR_JAR" -Dlanguage=Java Hello.g4 Expr.g4 Ctx.g4 )
 echo "Compiling parsers and dumper"
 ( cd "$workdir" && javac -classpath "$ANTLR_JAR" ./*.java )
 
-# Each entry maps a fixture base name to its grammar's start rule
-# (kept as "name:startRule" pairs for bash 3.2 portability).
-for pair in "hello:greeting" "expr:prog"; do
-  name="${pair%%:*}"
-  start="${pair##*:}"
-  java -classpath "$workdir:$ANTLR_JAR" ParseDump "$name" "$start" \
+# Each entry maps a fixture base name to its grammar prefix and start rule
+# as "name:Grammar:startRule" (bash 3.2 portable). The Ctx grammar is
+# context-sensitive, so it has one fixture per call context.
+for entry in "hello:Hello:greeting" "expr:Expr:prog" "ctx_a:Ctx:s" "ctx_b:Ctx:s"; do
+  name="${entry%%:*}"
+  rest="${entry#*:}"
+  grammar="${rest%%:*}"
+  start="${rest##*:}"
+  java -classpath "$workdir:$ANTLR_JAR" ParseDump "$grammar" "$start" \
     < "$fixtures/$name.input" > "$fixtures/$name.tree"
   echo "$fixtures/$name.tree"
 done

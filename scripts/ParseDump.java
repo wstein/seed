@@ -3,26 +3,31 @@ import java.lang.reflect.*;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
+/**
+ * Parses stdin with a generated grammar and prints the parse tree as a
+ * LISP-style string. Grammar-agnostic: it loads <Grammar>Lexer and
+ * <Grammar>Parser by reflection and invokes the named start rule.
+ *
+ * Usage: java ParseDump <GrammarPrefix> <startRule>   (e.g. Expr prog)
+ */
 public class ParseDump {
     public static void main(String[] args) throws Exception {
         String grammar = args[0], start = args[1];
         String input = new String(System.in.readAllBytes());
-        CharStream cs = CharStreams.fromString(input);
-        Lexer lexer = switch (grammar) {
-            case "hello" -> new HelloLexer(cs);
-            case "expr" -> new ExprLexer(cs);
-            default -> throw new IllegalArgumentException(grammar);
-        };
+
+        Lexer lexer = (Lexer)
+            Class.forName(grammar + "Lexer")
+                .getConstructor(CharStream.class)
+                .newInstance(CharStreams.fromString(input));
         lexer.removeErrorListeners();
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-        Parser parser = switch (grammar) {
-            case "hello" -> new HelloParser(tokens);
-            case "expr" -> new ExprParser(tokens);
-            default -> throw new IllegalArgumentException(grammar);
-        };
+
+        Parser parser = (Parser)
+            Class.forName(grammar + "Parser")
+                .getConstructor(TokenStream.class)
+                .newInstance(new CommonTokenStream(lexer));
         parser.removeErrorListeners();
-        Method m = parser.getClass().getMethod(start);
-        ParserRuleContext tree = (ParserRuleContext) m.invoke(parser);
+
+        ParserRuleContext tree = (ParserRuleContext) parser.getClass().getMethod(start).invoke(parser);
         System.out.println(Trees.toStringTree(tree, Arrays.asList(parser.getRuleNames())));
     }
 }

@@ -20,6 +20,11 @@ The fixtures cover:
 - `expr` — the start rule `prog`: a left-recursive expression grammar, so
   the tree records operator precedence (`*` binds tighter than `+`), which
   exercises the parser's precedence-climbing decisions.
+- `ctx_a` / `ctx_b` — the `Ctx` grammar's start rule `s`, a context-sensitive
+  grammar (rule `e` is called from two follow-contexts). `ctx_b`
+  (`@ 34 abc`) is the discriminating case: it parses correctly only with
+  full-context prediction — picking the lowest conflicting alternative would
+  mispredict.
 
 Regenerate with:
 

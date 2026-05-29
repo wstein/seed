@@ -1,18 +1,22 @@
 defmodule Seed.ParserATNSimulator do
   @moduledoc """
   Predicts which alternative a parser decision should take by simulating the
-  ATN over the upcoming tokens (adaptive LL(*), SLL stage).
+  ATN over the upcoming tokens (adaptive LL(*)).
 
-  Like `Seed.LexerATNSimulator`, this is a faithful transliteration of the
-  reference algorithm without the adaptive DFA cache (a behaviour-preserving
-  optimization deferred to a later, BEAM-native design). From the decision's
-  start state it computes the epsilon-closure, then advances the
-  configuration set token by token (over a private lookahead copy of the
-  input) until one alternative survives or the survivors are in irreducible
-  SLL conflict, in which case the lowest alternative wins.
+  Prediction uses the parser's **full** rule-invocation context: the start
+  state is built from the real call stack (`from_rule_context`), so
+  context-sensitive decisions — where the viable alternative depends on who
+  called the rule — are resolved correctly. It therefore does not need the
+  reference's separate SLL-first stage, which trades that context away for
+  cacheability; adding that optimization is future work.
 
-  Left-recursive decisions are handled by the precedence filter, which uses
-  the parser's current precedence to drop lower-priority alternatives.
+  From the decision's start state it computes the epsilon-closure, then
+  advances the configuration set token by token (over a private lookahead
+  copy of the input) until one alternative survives or the survivors are in
+  irreducible conflict, in which case the lowest alternative wins (ANTLR's
+  default ambiguity resolution). Left-recursive decisions are handled by the
+  precedence filter, which uses the parser's current precedence to drop
+  lower-priority alternatives. Results are memoized in `Seed.DFACache`.
   """
 
   alias Seed.ATN.ATNConfig
@@ -74,7 +78,7 @@ defmodule Seed.ParserATNSimulator do
   defp compute_start_state(atn, state, context, parser) do
     state.transitions
     |> Enum.with_index()
-    |> Enum.reduce(ParserATNConfigSet.new(false), fn {transition, index}, configs ->
+    |> Enum.reduce(ParserATNConfigSet.new(true), fn {transition, index}, configs ->
       config = %ATNConfig{state: transition.target, alt: index + 1, context: context}
       {configs, _busy} = closure(atn, config, {configs, MapSet.new()}, true, parser)
       configs
@@ -89,7 +93,7 @@ defmodule Seed.ParserATNSimulator do
   end
 
   defp keep_primary_alts(configs, precpred) do
-    Enum.reduce(configs, {ParserATNConfigSet.new(false), %{}}, fn
+    Enum.reduce(configs, {ParserATNConfigSet.new(true), %{}}, fn
       %ATNConfig{alt: 1} = config, {set, states} ->
         case SemanticContext.eval_precedence(config.semantic_context, precpred) do
           nil ->
@@ -156,7 +160,7 @@ defmodule Seed.ParserATNSimulator do
 
     cond do
       unique != 0 -> unique
-      PredictionMode.sll_conflict?(reach, atn) -> PredictionMode.min_alt(reach_configs)
+      PredictionMode.conflict?(reach, atn) -> PredictionMode.min_alt(reach_configs)
       true -> decide(atn, reach, TokenStream.consume(input), parser)
     end
   end
@@ -183,7 +187,7 @@ defmodule Seed.ParserATNSimulator do
     intermediate = reachable_configs(atn, ParserATNConfigSet.configs(configs), t)
 
     {reach, _busy} =
-      Enum.reduce(intermediate, {ParserATNConfigSet.new(false), MapSet.new()}, fn config, acc ->
+      Enum.reduce(intermediate, {ParserATNConfigSet.new(true), MapSet.new()}, fn config, acc ->
         closure(atn, config, acc, false, parser)
       end)
 

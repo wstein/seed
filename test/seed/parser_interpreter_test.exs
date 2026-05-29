@@ -13,9 +13,16 @@ defmodule Seed.ParserInterpreterTest do
 
   # Grammars are loaded from their .interp files, so rule names come from the
   # grammar rather than being hardcoded here.
+  #
+  # Ctx is the canonical context-sensitive grammar: rule `e` is called from
+  # two follow-contexts, so its decision can only be resolved with the full
+  # rule-invocation stack. ctx_b (`@ 34 abc`) is the discriminating case —
+  # picking the lowest conflicting alternative would mispredict and fail.
   @cases [
     %{name: "hello", grammar: "Hello", start_rule: 0},
-    %{name: "expr", grammar: "Expr", start_rule: 0}
+    %{name: "expr", grammar: "Expr", start_rule: 0},
+    %{name: "ctx_a", grammar: "Ctx", start_rule: 0},
+    %{name: "ctx_b", grammar: "Ctx", start_rule: 0}
   ]
 
   for fixture <- @cases do
