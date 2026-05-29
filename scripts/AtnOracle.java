@@ -2,6 +2,14 @@ import java.nio.file.*;
 import java.util.*;
 import org.antlr.v4.runtime.atn.*;
 
+/**
+ * Deserializes a serialized-ATN fixture with the canonical ANTLR4 runtime
+ * and prints reference structural facts as JSON. Used by
+ * scripts/gen_atn_fixtures.sh to produce the *.oracle.json fixtures that
+ * Seed's own deserializer is validated against.
+ *
+ * Usage: java AtnOracle <fixture-base-name>   (reads <name>.atn)
+ */
 public class AtnOracle {
     public static void main(String[] args) throws Exception {
         String name = args[0];
@@ -23,6 +31,7 @@ public class AtnOracle {
                 }
             }
         }
+
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("  \"grammarType\": \"").append(atn.grammarType).append("\",\n");
@@ -31,9 +40,20 @@ public class AtnOracle {
         sb.append("  \"numRules\": ").append(atn.ruleToStartState.length).append(",\n");
         sb.append("  \"numDecisions\": ").append(atn.decisionToState.size()).append(",\n");
         sb.append("  \"numModes\": ").append(atn.modeToStartState.size()).append(",\n");
-        sb.append("  \"stateTypeHistogram\": ").append(stateHist).append(",\n");
-        sb.append("  \"transitionTypeHistogram\": ").append(transHist).append("\n");
+        sb.append("  \"stateTypeHistogram\": ").append(jsonHist(stateHist)).append(",\n");
+        sb.append("  \"transitionTypeHistogram\": ").append(jsonHist(transHist)).append("\n");
         sb.append("}\n");
         System.out.print(sb);
+    }
+
+    private static String jsonHist(TreeMap<Integer,Integer> hist) {
+        StringBuilder sb = new StringBuilder("{");
+        boolean first = true;
+        for (Map.Entry<Integer,Integer> e : hist.entrySet()) {
+            if (!first) sb.append(", ");
+            sb.append("\"").append(e.getKey()).append("\": ").append(e.getValue());
+            first = false;
+        }
+        return sb.append("}").toString();
     }
 }

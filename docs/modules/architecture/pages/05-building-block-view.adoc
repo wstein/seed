@@ -20,11 +20,19 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   binary, offering lookahead, consume, mark/seek, and text extraction.
 * `Seed.TokenStream` — an in-memory buffer of tokens with positional
   lookahead, the bridge between a lexer's output and a parser's input.
+* `Seed.IntervalSet` — merged inclusive integer intervals, the symbols a
+  set or not-set transition matches.
+* `Seed.ATN`, `Seed.ATN.State`, `Seed.ATN.Transition`,
+  `Seed.ATN.LexerAction` — the ATN graph as an immutable value: states and
+  transitions are single structs discriminated by an atom, and edges
+  reference other states by integer number.
+* `Seed.ATNDeserializer` — reconstructs the ATN from the tool's serialized
+  integer stream, validated against the canonical runtime
+  (xref:09-architecture-decisions.adoc#adr-002[ADR-002]).
 
 === Planned
 
-* *ATN layer* — the ATN data model, the deserializer for the serialized
-  integer stream, transitions, prediction context, and DFA.
+* *Prediction support* — prediction context, configuration sets, and DFA.
 * *Simulators* — the lexer and parser (adaptive LL(*)) ATN simulators.
 * *Recognizer bases* — lexer and parser base behaviours, error listeners
   and recovery strategy, parse-tree nodes, and the tree walker.

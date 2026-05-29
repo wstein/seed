@@ -20,11 +20,15 @@ Early development. The implemented and verified foundation is:
 - **Tokens & vocabulary** — `Seed.Token`, `Seed.Vocabulary`.
 - **Input streams** — `Seed.CharStream` (character input) and
   `Seed.TokenStream` (token buffering).
+- **ATN model & deserializer** — `Seed.ATN` and `Seed.ATNDeserializer`
+  reconstruct the full ATN graph (states, transitions, interval sets,
+  lexer actions) from the tool's serialized integer stream. Each parse is
+  validated, decision-for-decision, against the canonical ANTLR4 runtime
+  via golden fixtures (see `test/fixtures/atn/`).
 
-These layers are complete, tested, and have no dependency on the ATN
-simulator. The prediction engine (ATN deserializer and the lexer/parser
-ATN simulators) and the Elixir code-generation target are the next
-milestones — see the architecture docs for the full roadmap.
+The ATN simulators (lexer and parser adaptive LL(\*) prediction) and the
+Elixir code-generation target are the next milestones — see the
+architecture docs for the full roadmap.
 
 ## Design principles
 

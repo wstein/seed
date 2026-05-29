@@ -5,6 +5,6 @@
   "numRules": 1,
   "numDecisions": 0,
   "numModes": 0,
-  "stateTypeHistogram": {1=5, 2=1, 7=1},
-  "transitionTypeHistogram": {1=2, 5=3}
+  "stateTypeHistogram": {"1": 5, "2": 1, "7": 1},
+  "transitionTypeHistogram": {"1": 2, "5": 3}
 }
