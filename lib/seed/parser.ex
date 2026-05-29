@@ -50,20 +50,6 @@ defmodule Seed.Parser do
             parent_context_stack: [],
             diagnostics: []
 
-  defmodule Error do
-    @moduledoc """
-    Raised on an unrecoverable parse error.
-
-    Carries every `Seed.Diagnostic` accumulated so far (recovered errors
-    plus the final, unrecoverable one), so the public boundary can report
-    them all.
-    """
-    defexception [:diagnostics]
-
-    @impl true
-    def message(%__MODULE__{diagnostics: [first | _]}), do: first.message
-  end
-
   @doc """
   Builds a parser over `atn` reading `input`.
 

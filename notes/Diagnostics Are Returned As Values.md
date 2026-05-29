@@ -8,10 +8,12 @@ Seed surfaces lex and parse failures as structured `Seed.Diagnostic` values retu
 ## What
 
 `Seed.Lexer.tokenize/1` and `Seed.ParserInterpreter.parse/3` return
-`{:ok, result} | {:error, [Seed.Diagnostic.t()]}`. Internally the hot path
-still raises a `Seed.Lexer.Error`/`Seed.Parser.Error`, but those exceptions
-now carry a `%Seed.Diagnostic{}`, which the public boundary rescues into the
-error tuple.
+`{:ok, result} | {:error, [Seed.Diagnostic.t()]}`. The lexer's hot path
+raises a `Seed.Lexer.Error` carrying a `%Seed.Diagnostic{}`, which the public
+boundary rescues into the error tuple. The parser no longer aborts: every
+error is recovered (see *How*), so it accumulates `%Seed.Diagnostic{}` values
+on its struct and the boundary returns them as `{:error, diagnostics}` when
+the input was not well-formed.
 
 ## Why
 
@@ -33,13 +35,18 @@ grammar is supplied, the parser carries its `Seed.Vocabulary`, so mismatch
 messages name the expected token (`expected ID`) instead of its numeric
 type; without a vocabulary they fall back to the number.
 
-The parser accumulates diagnostics on the `Seed.Parser` struct and recovers
-where it can: single-token deletion drops an extraneous token when the next
-one is the expected one, so a parse reports a diagnostic per error rather
-than stopping at the first. An unrecoverable error raises with the full
-accumulated list (`Seed.Parser.Error` carries `:diagnostics`); a parse that
-recovered throughout still returns `{:error, diagnostics}` because the input
-was not well-formed. Token insertion and resync sets are the next steps.
+The parser accumulates diagnostics on the `Seed.Parser` struct and always
+recovers, so a parse reports a diagnostic per error rather than stopping at
+the first. Single-token recovery handles local errors — deletion drops an
+extraneous token when the next one is expected; insertion fabricates a
+missing token when the real one can still continue the rule (an `expects?/3`
+ATN check that keeps it from looping). When neither applies — a token
+mismatch or a no-viable-alternative at a decision — the parser throws itself
+back to the interpreter (`{:seed_resync, parser}`) for panic-mode
+resynchronization: `Seed.Parser.sync/1` discards input up to the current
+rule's follow set and unwinds to its stop state. Because every recovery
+consumes a token or pops a rule, parsing always terminates; a parse that
+recovered throughout still returns `{:error, diagnostics}`.
 
 ## Links
 

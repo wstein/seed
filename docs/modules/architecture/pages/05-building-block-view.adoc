@@ -70,10 +70,11 @@ xref:04-solution-strategy.adoc[Solution Strategy].
    token can still continue the rule past it, which keeps recovery from
    looping.
 ** *Panic-mode resync* (`Seed.Parser.sync/1`) — when no single-token
-   recovery applies, the parser discards input up to the current rule's
-   follow set (the resynchronization set, computed from the active frames
-   with `expects?/3`) and unwinds to that rule's stop state. Every recovery
-   either consumes a token or pops a rule, so it always makes progress.
+   recovery applies — either a token mismatch or a no-viable-alternative at a
+   decision — the parser discards input up to the current rule's follow set
+   (the resynchronization set, computed from the active frames with
+   `expects?/3`) and unwinds to that rule's stop state. Every recovery either
+   consumes a token or pops a rule, so it always makes progress.
 --
 
 * `Seed.Generated` — the Elixir code-generation target. `use Seed.Generated,
@@ -85,9 +86,6 @@ xref:04-solution-strategy.adoc[Solution Strategy].
 
 === Planned
 
-* *Prediction-time resync* — recovery for a no-viable-alternative at a
-  decision (today a hard parse error), complementing the match-time resync
-  above.
 * *SLL-first optimization* — a context-free fast path with full-context
   fallback, for DFA cacheability across call sites (performance, not
   correctness).

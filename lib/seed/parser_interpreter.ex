@@ -50,8 +50,6 @@ defmodule Seed.ParserInterpreter do
       [] -> {:ok, tree}
       diagnostics -> {:error, diagnostics}
     end
-  rescue
-    error in Parser.Error -> {:error, error.diagnostics}
   end
 
   defp build_tree(atn, token_stream, start_rule_index, vocabulary) do

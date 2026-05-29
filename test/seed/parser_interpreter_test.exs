@@ -99,19 +99,20 @@ defmodule Seed.ParserInterpreterTest do
              "(expr (expr 1) + (expr (expr 2) * (expr 3)))"
   end
 
-  test "resynchronizes past unrecoverable input to the rule's follow set" do
+  test "resynchronizes past a no-viable decision to the rule's follow set" do
     parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
-    # First statement: after "x = 1" the ';' is missing and the stray "2" can
-    # neither be deleted nor have ';' inserted before it, so the parser enters
-    # panic mode and discards "2 ;" up to the next statement's leading ID.
-    # The second statement ("y y = 2 ;") then parses, recovering its own
-    # extraneous ID by single-token deletion — proving the walk continued.
+    # After "x = 1" the stray "2" leaves the `expr` decision with no viable
+    # alternative (it is neither an operator to continue the expression nor a
+    # ';' to end the statement). The parser enters panic mode, discards "2" up
+    # to expr's follow (';'), and recovers. The second statement ("y y = 2 ;")
+    # then parses, removing its own extraneous ID by single-token deletion —
+    # proving the walk continued past the resynchronization.
     {:ok, tokens} =
       lexer.atn |> Lexer.new(CharStream.new("x = 1 2 ; y y = 2 ;")) |> TokenStream.from_lexer()
 
     assert {:error, diagnostics} = ParserInterpreter.parse(parser, tokens, 0)
-    assert Enum.map(diagnostics, & &1.code) == [:token_mismatch, :extraneous_input]
+    assert Enum.map(diagnostics, & &1.code) == [:no_viable_alternative, :extraneous_input]
   end
 
   test "parser predictions are memoized in the DFA cache" do

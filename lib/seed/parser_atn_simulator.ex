@@ -171,16 +171,18 @@ defmodule Seed.ParserATNSimulator do
   # lands directly on rule-stop. With a non-empty context the exit instead
   # lands on the caller's follow (a non-stop state), so fall back to the
   # lowest alternative present.
+  # No alternative can consume the next token. Prefer an alternative that has
+  # reached the decision's rule-stop state — it accepts here without consuming
+  # (the lowest such, ANTLR's ambiguity convention); this is what lets a
+  # decision exit under an empty outer context, e.g. the precedence loop of a
+  # left-recursive rule parsed as the start rule. With no accepting
+  # alternative the input is genuinely unparseable at this decision, so throw
+  # the parser back to the interpreter for panic-mode resynchronization (the
+  # same channel as a match failure), reporting a no-viable-alternative.
   defp predict_from(atn, configs, input, parser) do
-    case ParserATNConfigSet.configs(configs) do
-      [] ->
-        raise Parser.Error, diagnostics: parser.diagnostics ++ [no_viable_alternative(input)]
-
-      reach_configs ->
-        case stop_state_alts(atn, reach_configs) do
-          [] -> PredictionMode.min_alt(reach_configs)
-          alts -> Enum.min(alts)
-        end
+    case stop_state_alts(atn, ParserATNConfigSet.configs(configs)) do
+      [] -> throw({:seed_resync, Parser.add_diagnostic(parser, no_viable_alternative(input))})
+      alts -> Enum.min(alts)
     end
   end
 
