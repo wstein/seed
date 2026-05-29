@@ -187,7 +187,7 @@ fixtures — Hello → Expr → Ctx → Cover → JSON):*
 |===
 | Phase | Work
 
-| 0. Bootstrap | Parse `.g4` with Seed's own runtime, driven by the ANTLRv4-grammar ATN obtained from the reference tool as a fixture. Doubles as a large real-grammar parity test.
+| 0. Bootstrap _(spike done)_ | Parse `.g4` with Seed's own runtime, driven by a grammar-for-grammars ATN from the reference tool. Demonstrated by `Seed.G4BootstrapTest`: a `G4.g4` covering a subset of ANTLR syntax parses Seed's own fixtures (Hello, Expr, Hidden, Ctx), and the result is queryable with `Seed.XPath`. Constructs beyond the subset (semantic predicates, embedded actions, `..` ranges) and the official adaptor-driven lexer are later iterations.
 | 1. Grammar model | Build the AST and symbol model from the `.g4` parse tree: rules, tokens, literals, fragments, channels, modes; resolve references; assign token types.
 | 2. Lexer ATN | Construct the lexer ATN (rules, sets/ranges, EBNF blocks, lexer commands) and diff the `%Seed.ATN{}` against the reference `*Lexer.interp`.
 | 3. Parser ATN | Construct the parser ATN (alternatives, EBNF block/loop states, decisions, rule-stop and follow wiring) and diff against the reference `.interp`.
