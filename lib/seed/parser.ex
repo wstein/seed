@@ -30,6 +30,17 @@ defmodule Seed.Parser do
 
   @eof Token.eof()
 
+  @typedoc """
+  Evaluates a grammar semantic predicate `{...}?`.
+
+  Called with the predicate's rule index, its per-rule predicate index, and
+  the current rule context, it returns whether the predicate holds. The
+  interpreter cannot run the host code a predicate compiles to, so the caller
+  supplies this; the default treats every predicate as satisfied.
+  """
+  @type sempred :: (rule_index :: integer(), pred_index :: integer(), ParserRuleContext.t() ->
+                      boolean())
+
   @type t :: %__MODULE__{
           atn: ATN.t(),
           input: TokenStream.t(),
@@ -38,7 +49,8 @@ defmodule Seed.Parser do
           frames: [ParserRuleContext.t()],
           precedence_stack: [integer()],
           parent_context_stack: [integer()],
-          diagnostics: [Diagnostic.t()]
+          diagnostics: [Diagnostic.t()],
+          sempred: sempred()
         }
 
   @enforce_keys [:atn, :input]
@@ -49,18 +61,30 @@ defmodule Seed.Parser do
             frames: [],
             precedence_stack: [],
             parent_context_stack: [],
-            diagnostics: []
+            diagnostics: [],
+            sempred: nil
 
   @doc """
   Builds a parser over `atn` reading `input`.
 
   `vocabulary` supplies token names for diagnostics; it defaults to an empty
   vocabulary, in which case messages fall back to numeric token types.
+  `sempred` evaluates grammar semantic predicates (see `t:sempred/0`); it
+  defaults to treating every predicate as satisfied.
   """
-  @spec new(ATN.t(), TokenStream.t(), Vocabulary.t()) :: t()
-  def new(%ATN{} = atn, %TokenStream{} = input, vocabulary \\ Vocabulary.empty()) do
-    %__MODULE__{atn: atn, input: input, vocabulary: vocabulary}
+  @spec new(ATN.t(), TokenStream.t(), Vocabulary.t(), sempred()) :: t()
+  def new(
+        %ATN{} = atn,
+        %TokenStream{} = input,
+        vocabulary \\ Vocabulary.empty(),
+        sempred \\ &default_sempred/3
+      ) do
+    %__MODULE__{atn: atn, input: input, vocabulary: vocabulary, sempred: sempred}
   end
+
+  # The default predicate evaluator: every semantic predicate is satisfied,
+  # which reproduces the behaviour of a grammar without predicates.
+  defp default_sempred(_rule_index, _pred_index, _ctx), do: true
 
   @doc "The current rule context (the top frame)."
   @spec current_context(t()) :: ParserRuleContext.t()

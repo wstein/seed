@@ -137,6 +137,47 @@ defmodule Seed.ParserInterpreterTest do
     assert Trees.to_string_tree(resynced, expr) == "(prog (stat x = (expr 1 2) ;) <EOF>)"
   end
 
+  test "a semantic predicate disambiguates otherwise-ambiguous alternatives" do
+    parser = Interp.load!(Path.join(@interp_dir, "Pred.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "PredLexer.interp"))
+    # `item : {tagged}? foo | bar ;` — `foo` and `bar` both match "x ;", so
+    # only the predicate on the first alternative chooses between them.
+    {:ok, tokens} = lexer.atn |> Lexer.new(CharStream.new("x ;")) |> TokenStream.from_lexer()
+
+    # Default: predicates are satisfied, so the first alternative wins.
+    assert {:ok, default_tree} = ParserInterpreter.parse(parser, tokens, 0)
+    assert Trees.to_string_tree(default_tree, parser) == "(prog (item (foo x ;)) <EOF>)"
+
+    # Predicate true keeps `foo`; predicate false selects `bar`.
+    assert {:ok, foo} =
+             ParserInterpreter.parse(parser, tokens, 0, sempred: fn _, _, _ -> true end)
+
+    assert Trees.to_string_tree(foo, parser) == "(prog (item (foo x ;)) <EOF>)"
+
+    assert {:ok, bar} =
+             ParserInterpreter.parse(parser, tokens, 0, sempred: fn _, _, _ -> false end)
+
+    assert Trees.to_string_tree(bar, parser) == "(prog (item (bar x ;)) <EOF>)"
+  end
+
+  test "the predicate callback receives the rule and predicate index" do
+    parser = Interp.load!(Path.join(@interp_dir, "Pred.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "PredLexer.interp"))
+    {:ok, tokens} = lexer.atn |> Lexer.new(CharStream.new("x ;")) |> TokenStream.from_lexer()
+
+    me = self()
+
+    ParserInterpreter.parse(parser, tokens, 0,
+      sempred: fn rule_index, pred_index, _ctx ->
+        send(me, {:sempred, rule_index, pred_index})
+        true
+      end
+    )
+
+    # The predicate lives in rule `item` (index 1) as that rule's predicate 0.
+    assert_received {:sempred, 1, 0}
+  end
+
   test "parser predictions are memoized in the DFA cache" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     tokens = tokenize("Expr", "expr")

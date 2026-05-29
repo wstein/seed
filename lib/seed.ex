@@ -57,16 +57,26 @@ defmodule Seed do
   `{:error, diagnostics}`; a parsing failure returns `{:error, diagnostics,
   tree}`, the partially recovered tree (with `Seed.ErrorNode` leaves) being
   available since the parser always recovers.
+
+  `opts` are forwarded to `Seed.ParserInterpreter.parse/4` — notably
+  `:sempred`, a `t:Seed.Parser.sempred/0` evaluating grammar semantic
+  predicates `{...}?`.
   """
-  @spec parse(Grammar.t(), Grammar.t(), binary(), non_neg_integer()) ::
+  @spec parse(Grammar.t(), Grammar.t(), binary(), non_neg_integer(), keyword()) ::
           {:ok, ParserRuleContext.t()}
           | {:error, [Diagnostic.t()]}
           | {:error, [Diagnostic.t()], ParserRuleContext.t()}
-  def parse(%Grammar{} = parser_grammar, %Grammar{atn: lexer_atn}, input, start_rule_index)
+  def parse(
+        %Grammar{} = parser_grammar,
+        %Grammar{atn: lexer_atn},
+        input,
+        start_rule_index,
+        opts \\ []
+      )
       when is_binary(input) do
     with {:ok, stream} <-
            lexer_atn |> Lexer.new(CharStream.new(input)) |> TokenStream.from_lexer() do
-      ParserInterpreter.parse(parser_grammar, stream, start_rule_index)
+      ParserInterpreter.parse(parser_grammar, stream, start_rule_index, opts)
     end
   end
 end

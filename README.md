@@ -71,12 +71,13 @@ Early development. The implemented and verified foundation is:
 Seed is **not yet at parity** with the reference runtimes. It implements a
 large, production-quality subset: serialized-ATN v4 (the contract shared by
 ANTLR4, antlr-ng, and ANTLR5), the lexer (modes, channels, commands), full
-adaptive-LL(\*) parsing with left recursion, error recovery, and tree
-traversal. The notable gaps — two of them architectural, since an ATN
-*interpreter* cannot execute the host code that embedded actions (`{...}`)
-and custom semantic predicates (`{...}?`) compile to — plus the full feature
-matrix and a phased plan to close them, are in
+adaptive-LL(\*) parsing with left recursion, error recovery, tree traversal,
+and **semantic-predicate** (`{...}?`) disambiguation via a caller-supplied
+evaluator (since the interpreter can't run the host code itself). Remaining
+gaps — embedded actions (`{...}`), lexer predicates, off-channel token
+filtering — plus the full feature matrix and a phased plan are in
 [Feature Parity And Roadmap](docs/modules/manual/pages/feature-parity.adoc).
+A self-hosting `.g4`→ATN tool is planned separately (ADR-007).
 
 ## Design principles
 

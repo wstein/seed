@@ -32,24 +32,32 @@ defmodule Seed.ParserInterpreter do
   produces a complete tree (errors are recovered), so the partial tree, with
   `Seed.ErrorNode` leaves marking the recovery points, is returned alongside
   the diagnostics.
+
+  Options:
+
+    * `:sempred` — a `t:Seed.Parser.sempred/0` evaluating grammar semantic
+      predicates `{...}?`; defaults to treating every predicate as satisfied.
   """
-  @spec parse(Grammar.t() | ATN.t(), TokenStream.t(), non_neg_integer()) ::
+  @spec parse(Grammar.t() | ATN.t(), TokenStream.t(), non_neg_integer(), keyword()) ::
           {:ok, ParserRuleContext.t()}
           | {:error, [Diagnostic.t()], ParserRuleContext.t()}
+  def parse(grammar_or_atn, token_stream, start_rule_index, opts \\ [])
+
   def parse(
         %Grammar{atn: atn, vocabulary: vocabulary},
         %TokenStream{} = token_stream,
-        start_rule_index
+        start_rule_index,
+        opts
       ) do
-    do_parse(atn, token_stream, start_rule_index, vocabulary)
+    do_parse(atn, token_stream, start_rule_index, vocabulary, opts)
   end
 
-  def parse(%ATN{} = atn, %TokenStream{} = token_stream, start_rule_index) do
-    do_parse(atn, token_stream, start_rule_index, Vocabulary.empty())
+  def parse(%ATN{} = atn, %TokenStream{} = token_stream, start_rule_index, opts) do
+    do_parse(atn, token_stream, start_rule_index, Vocabulary.empty(), opts)
   end
 
-  defp do_parse(atn, token_stream, start_rule_index, vocabulary) do
-    {tree, parser} = build_tree(atn, token_stream, start_rule_index, vocabulary)
+  defp do_parse(atn, token_stream, start_rule_index, vocabulary, opts) do
+    {tree, parser} = build_tree(atn, token_stream, start_rule_index, vocabulary, opts)
 
     case parser.diagnostics do
       [] -> {:ok, tree}
@@ -57,8 +65,13 @@ defmodule Seed.ParserInterpreter do
     end
   end
 
-  defp build_tree(atn, token_stream, start_rule_index, vocabulary) do
-    parser = Parser.new(atn, token_stream, vocabulary)
+  defp build_tree(atn, token_stream, start_rule_index, vocabulary, opts) do
+    parser =
+      case Keyword.get(opts, :sempred) do
+        nil -> Parser.new(atn, token_stream, vocabulary)
+        sempred -> Parser.new(atn, token_stream, vocabulary, sempred)
+      end
+
     start_number = Enum.at(atn.rule_to_start_state, start_rule_index)
     start_state = Map.fetch!(atn.states, start_number)
     push_states = precedence_decision_states(atn)

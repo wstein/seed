@@ -14,12 +14,16 @@ parity. The full status and the plan to close it live in
 xref:manual:feature-parity.adoc[Feature Parity And Roadmap]. The two gaps
 that are *architectural* rather than merely unfinished:
 
-* *Embedded actions* (`{...}`) and *custom semantic predicates* (`{...}?`)
-  are not executed. Seed interprets the ATN and cannot run the host-language
-  code these compile to, so a predicate cannot disambiguate alternatives and
-  an action has no effect. The planned remedy is caller-registered
-  predicate/action callbacks (and, for generated code, inlining them) — not a
-  change to the interpreter core.
+* *Custom semantic predicates* (`{...}?`) and *embedded actions* (`{...}`)
+  cannot be run by the interpreter — it cannot execute the host-language code
+  they compile to. Predicates are now handled by deferring the decision to a
+  caller-supplied evaluator (`Seed.ParserInterpreter.parse/4`'s `:sempred`, or
+  an overridable `sempred/3` in `Seed.Generated`), so predicated grammars
+  disambiguate correctly; the lexer predicate path is the remaining sub-step.
+  Embedded actions stay unaddressed by design: without typed contexts they
+  have no attributes to act on, so meaningful support is folded into the
+  codegen target, and post-parse computation is already served by the tree
+  walk.
 * *Off-channel token filtering* is absent: the parser's token stream drops
   only `skip`-ed tokens, so a grammar that routes whitespace or comments to a
   hidden channel (rather than `skip`) leaks those tokens to the parser.

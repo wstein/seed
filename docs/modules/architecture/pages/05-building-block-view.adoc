@@ -48,7 +48,10 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   can consume the next token, prediction selects an alternative that has
   reached the decision's rule-stop state, which lets a decision exit under an
   empty outer context — the case of parsing directly from a left-recursive
-  rule, where there is no caller follow to fall into.
+  rule, where there is no caller follow to fall into. When conflicting
+  alternatives carry semantic predicates (`{...}?`), they are evaluated
+  through the parser's `sempred` callback to pick the alternative whose
+  predicate holds.
 * `Seed.Parser` and `Seed.ParserInterpreter` — the ATN-walking tree builder,
   including left-recursion (from a sub-rule or directly as the start rule).
   Validated against the reference parser's trees.

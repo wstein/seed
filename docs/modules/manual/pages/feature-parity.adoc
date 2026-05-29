@@ -80,8 +80,8 @@ N/A by design.
 | Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, full rule-invocation context (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]).
 | Left recursion / precedence climbing | ✅ | As a sub-rule and directly as the start rule.
 | Precedence predicates | ✅ | The precedence filter evaluates them.
-| Custom semantic predicates (`{...}?`) | ✗ | Collected into the configuration's `SemanticContext` but never evaluated, so they cannot disambiguate alternatives (see Roadmap B).
-| Embedded actions (`{...}`) | ✗ | No-op on the matched path.
+| Custom semantic predicates (`{...}?`) | ✅ | Evaluated during conflict resolution via a caller-supplied `:sempred` callback (`Seed.ParserInterpreter.parse/4`, or an overridable `sempred/3` in `Seed.Generated`); the default treats every predicate as satisfied. The interpreter still cannot run the host code itself — the caller supplies the decision.
+| Embedded actions (`{...}`) | ✗ | No-op on the matched path. Plain actions need a typed-context/attribute model to be meaningful and are folded into the codegen target (Roadmap C); post-parse computation is already served by the tree walk.
 | SLL fast path with LL fallback | ✗ | Seed always predicts in full context — correct, but slower and less cacheable across call sites (see Roadmap D).
 | Decision memoization | ◐ | `Seed.DFACache` (ETS) memoizes start states and edges; it is a pure speedup, not the reference's persisted DFA edge structure.
 |===
@@ -141,13 +141,15 @@ shippable behind the project's quality gate (`make verify`).
 | Correctness for grammars that route whitespace/comments to a hidden
   channel rather than `skip`.
 
-| B. Predicate and action callbacks
-| Let the caller (and `Seed.Generated`) register functions keyed by
-  `{rule_index, pred_index}` / `{rule_index, action_index}`, and evaluate
-  registered predicates during conflict resolution / run registered actions
-  at action transitions (lexer and parser).
-| Custom semantic predicates and embedded actions — the largest semantic
-  gap — without abandoning the interpreter model.
+| B. Predicate callbacks
+| Let the caller (and `Seed.Generated`) supply a predicate evaluator keyed by
+  `{rule_index, pred_index}` and evaluate it during conflict resolution.
+  *Done for the parser; lexer predicates are the remaining sub-step.* Embedded
+  actions are deliberately excluded here — without typed contexts they have no
+  attributes to act on, so meaningful action support is folded into Phase C,
+  and post-parse work is already covered by the tree walk.
+| Custom semantic predicates — the largest semantic gap — without abandoning
+  the interpreter model.
 
 | C. Full Elixir codegen target
 | Extend `Seed.Generated` to emit typed per-rule context structs, labeled-

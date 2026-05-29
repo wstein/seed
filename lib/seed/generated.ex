@@ -99,7 +99,7 @@ defmodule Seed.Generated do
       @spec parse(binary(), non_neg_integer() | atom() | String.t()) ::
               {:ok, Seed.ParserRuleContext.t()} | {:error, [Seed.Diagnostic.t()]}
       def parse(input, rule) when is_binary(input) and is_integer(rule) do
-        Seed.parse(parser_grammar(), lexer_grammar(), input, rule)
+        Seed.parse(parser_grammar(), lexer_grammar(), input, rule, sempred: &sempred/3)
       end
 
       def parse(input, rule) when is_binary(input) and (is_atom(rule) or is_binary(rule)) do
@@ -112,6 +112,19 @@ defmodule Seed.Generated do
                   "unknown rule #{inspect(rule)}; known rules: #{inspect(rule_names())}"
         end
       end
+
+      @doc """
+      Evaluates a grammar semantic predicate `{...}?`.
+
+      Override this to make predicated alternatives behave correctly; the
+      default treats every predicate as satisfied. The arguments are the
+      predicate's rule index, its per-rule predicate index, and the current
+      rule context.
+      """
+      @spec sempred(integer(), integer(), Seed.ParserRuleContext.t()) :: boolean()
+      def sempred(_rule_index, _pred_index, _context), do: true
+
+      defoverridable sempred: 3
 
       unquote(rule_functions)
     end

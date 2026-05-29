@@ -157,8 +157,64 @@ defmodule Seed.ParserATNSimulator do
 
     cond do
       unique != 0 -> unique
-      PredictionMode.conflict?(reach, atn) -> PredictionMode.min_alt(reach_configs)
+      PredictionMode.conflict?(reach, atn) -> resolve_conflict(reach_configs, parser)
       true -> decide(atn, reach, TokenStream.consume(input), parser)
+    end
+  end
+
+  # Conflicting alternatives: if any carries a semantic predicate, evaluate
+  # the predicates and take the lowest alternative whose predicate holds;
+  # otherwise it is a pure syntactic ambiguity, resolved (as ANTLR does) to
+  # the lowest alternative. If every predicate fails, fall back to the lowest
+  # alternative rather than manufacturing a no-viable error.
+  defp resolve_conflict(reach_configs, parser) do
+    case predicated_alts(reach_configs) do
+      [] -> PredictionMode.min_alt(reach_configs)
+      alt_predicates -> lowest_satisfied_alt(alt_predicates, reach_configs, parser)
+    end
+  end
+
+  defp lowest_satisfied_alt(alt_predicates, reach_configs, parser) do
+    evaluator = leaf_evaluator(parser)
+
+    case for {alt, ctx} <- alt_predicates, SemanticContext.eval(ctx, evaluator), do: alt do
+      [] -> PredictionMode.min_alt(reach_configs)
+      satisfied -> Enum.min(satisfied)
+    end
+  end
+
+  # Maps each alternative to the disjunction of its configurations' semantic
+  # contexts (an alternative reachable by any predicate-free path is
+  # unconditionally satisfied, since `or_op` absorbs `:none`). Returns `[]`
+  # when no alternative is predicated — the common, no-predicate case.
+  defp predicated_alts(configs) do
+    by_alt =
+      Enum.reduce(configs, %{}, fn config, acc ->
+        Map.update(acc, config.alt, config.semantic_context, fn existing ->
+          SemanticContext.or_op(existing, config.semantic_context)
+        end)
+      end)
+
+    if Enum.all?(by_alt, fn {_alt, ctx} -> ctx == :none end) do
+      []
+    else
+      Map.to_list(by_alt)
+    end
+  end
+
+  # A leaf evaluator for `SemanticContext.eval/2`: grammar predicates defer to
+  # the parser's `sempred` callback (with the current rule context), and
+  # precedence predicates compare against the parser's current precedence.
+  defp leaf_evaluator(parser) do
+    context = Parser.current_context(parser)
+    current_precedence = Parser.precedence(parser)
+
+    fn
+      %SemanticContext.Predicate{rule_index: rule_index, pred_index: pred_index} ->
+        parser.sempred.(rule_index, pred_index, context)
+
+      %PrecedencePredicate{precedence: precedence} ->
+        precedence >= current_precedence
     end
   end
 

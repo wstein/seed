@@ -9,6 +9,16 @@ defmodule Seed.GeneratedTest do
       lexer: "test/fixtures/interp/ExprLexer.interp"
   end
 
+  # A generated module that overrides the predicate callback to reject the
+  # predicated alternative, so `item` resolves to `bar` instead of `foo`.
+  defmodule PredBar do
+    use Seed.Generated,
+      parser: "test/fixtures/interp/Pred.interp",
+      lexer: "test/fixtures/interp/PredLexer.interp"
+
+    def sempred(_rule_index, _pred_index, _context), do: false
+  end
+
   test "bakes the grammar metadata into the module" do
     assert Expr.rule_names() == ["prog", "stat", "expr"]
     assert %Seed.Grammar{} = Expr.parser_grammar()
@@ -46,5 +56,10 @@ defmodule Seed.GeneratedTest do
 
   test "error recovery flows through the generated entry points" do
     assert {:error, [%Seed.Diagnostic{} | _], _tree} = Expr.parse("x x = 1 ;")
+  end
+
+  test "an overridden sempred/3 steers a predicated decision" do
+    assert {:ok, tree} = PredBar.parse("x ;")
+    assert Trees.to_string_tree(tree, PredBar.parser_grammar()) == "(prog (item (bar x ;)) <EOF>)"
   end
 end
