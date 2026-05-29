@@ -68,7 +68,7 @@ N/A by design.
 
 | Buffered stream, relative lookahead, seek | ✅ | `Seed.TokenStream`.
 | Off-channel filtering for the parser (`CommonTokenStream`) | ✅ | `Seed.TokenStream`'s `lt`/`la`/`consume` skip tokens routed to a non-default channel (e.g. `channel(HIDDEN)`); they stay in the buffer, addressable by absolute position with `get/2`.
-| `TokenStreamRewriter` | ✗ | Not implemented.
+| `TokenStreamRewriter` | ✅ | `Seed.TokenStreamRewriter` — immutable insert/replace/delete over token positions, rendered with `text/1`. Operates over the full buffer (off-channel tokens included).
 |===
 
 === Parser and prediction
