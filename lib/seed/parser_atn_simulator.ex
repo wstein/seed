@@ -3,14 +3,19 @@ defmodule Seed.ParserATNSimulator do
   Predicts which alternative a parser decision should take by simulating the
   ATN over the upcoming tokens (adaptive LL(*)).
 
-  Prediction uses the parser's **full** rule-invocation context: the start
-  state is built from the real call stack (`from_rule_context`), so
-  context-sensitive decisions — where the viable alternative depends on who
-  called the rule — are resolved correctly. It therefore does not need the
-  reference's separate SLL-first stage, which trades that context away for
-  cacheability; adding that optimization is future work.
+  Prediction is two-stage, mirroring the reference. A decision first tries
+  **SLL** (Strong-LL): the start state is built with an *empty* outer context,
+  so its closure and DFA are shared across every call site and the context is
+  not rebuilt from the call stack — the cacheable fast path. SLL is a sound
+  over-approximation: a unique SLL result provably equals full-context LL's
+  answer. Only a genuine SLL *conflict* — a consuming alternative coexisting
+  with one that dipped into the unknown outer context (a config carried at its
+  rule-stop, e.g. the empty alternative of `ctx_b`'s rule `e`) — retries in
+  **full context**, where `from_rule_context` builds the start state from the
+  real call stack and resolves the context-sensitive decision. Left-recursive
+  (precedence) decisions predict in full context directly.
 
-  Without that SLL fast path, full-context prediction can explode on a highly
+  Full-context prediction (the fallback) can still explode on a highly
   ambiguous grammar (a single decision exploring an unbounded
   configuration/context space). A closure that exceeds its step,
   configuration, recursion-depth, or heap bound therefore fails *gracefully*
@@ -40,8 +45,10 @@ defmodule Seed.ParserATNSimulator do
   alias Seed.TokenStream
 
   # Bounds a single decision's closure so full-context prediction cannot
-  # exhaust memory or burn CPU on an ambiguous grammar (Seed has no SLL fast
-  # path to bound it). Real grammars stay far below these even on complex
+  # exhaust memory or burn CPU on an ambiguous grammar (the SLL fast path
+  # handles the common case, but a genuine context-sensitive decision can still
+  # fall through to an unbounded full-context closure). Real grammars stay far
+  # below these even on complex
   # decisions, so exceeding any of them means prediction is exploding, and it
   # fails gracefully with a diagnostic. The heap-size guard is the catch-all:
   # the explosion can hide in a few configurations carrying gigantic merged
@@ -66,25 +73,52 @@ defmodule Seed.ParserATNSimulator do
   def adaptive_predict(%Parser{atn: atn} = parser, decision) do
     Process.put(:seed_closure_steps, 0)
     decision_state = Map.fetch!(atn.states, Enum.at(atn.decision_to_state, decision))
+
+    # A precedence (left-recursive) decision predicts in full context directly —
+    # its precedence-filtered start state is not SLL-shareable. Everything else
+    # tries SLL first: an empty outer context, so the start state is shared
+    # across every call site and the context need not be rebuilt from the frames.
+    if precedence_decision?(decision_state) do
+      ll_predict(atn, decision_state, parser, decision)
+    else
+      try_sll(atn, decision_state, parser, decision)
+    end
+  end
+
+  defp precedence_decision?(%State{state_type: :star_loop_entry, is_precedence_decision: true}),
+    do: true
+
+  defp precedence_decision?(%State{}), do: false
+
+  # SLL: predict with an empty outer context. A unique result is provably the
+  # full-context answer (SLL soundness); only a genuine SLL *conflict* — a
+  # consuming alternative coexisting with one that dipped into the unknown
+  # outer context — retries in full context.
+  defp try_sll(atn, decision_state, parser, decision) do
+    start = start_state(atn, decision_state, :empty, parser, decision, false)
+    decide(atn, start, parser.input, parser, false)
+  catch
+    :sll_conflict -> ll_predict(atn, decision_state, parser, decision)
+  end
+
+  defp ll_predict(atn, decision_state, parser, decision) do
     outer_context = from_rule_context(atn, parser.frames)
-
-    # The start-state closure and reach are pure functions of the grammar,
-    # decision/configs, and lookahead — not the parser — so they are cached
-    # by those alone. The precedence filter (below) does depend on the
-    # parser's precedence, so it stays outside the cache.
-    start =
-      DFACache.memoize({atn.cache_key, :parser_start, decision, outer_context}, fn ->
-        compute_start_state(atn, decision_state, outer_context, parser)
-      end)
+    start = start_state(atn, decision_state, outer_context, parser, decision, true)
 
     start =
-      if decision_state.state_type == :star_loop_entry and decision_state.is_precedence_decision do
-        apply_precedence_filter(start, parser)
-      else
-        start
-      end
+      if precedence_decision?(decision_state),
+        do: apply_precedence_filter(start, parser),
+        else: start
 
-    decide(atn, start, parser.input, parser)
+    decide(atn, start, parser.input, parser, true)
+  end
+
+  # The decision's start-state closure, memoized. For the empty (SLL) context
+  # the key is shared across every call site, which is the point.
+  defp start_state(atn, decision_state, context, parser, decision, full_ctx?) do
+    DFACache.memoize({atn.cache_key, :parser_start, decision, context, full_ctx?}, fn ->
+      compute_start_state(atn, decision_state, context, parser, full_ctx?)
+    end)
   end
 
   # Builds the prediction context for the call stack above the decision.
@@ -99,12 +133,12 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Start state and precedence filter ----------------------------------
 
-  defp compute_start_state(atn, state, context, parser) do
+  defp compute_start_state(atn, state, context, parser, full_ctx?) do
     state.transitions
     |> Enum.with_index()
-    |> Enum.reduce(ParserATNConfigSet.new(true), fn {transition, index}, configs ->
+    |> Enum.reduce(ParserATNConfigSet.new(full_ctx?), fn {transition, index}, configs ->
       config = %ATNConfig{state: transition.target, alt: index + 1, context: context}
-      {configs, _busy} = closure(atn, config, {configs, MapSet.new()}, true, parser)
+      {configs, _busy} = closure(atn, config, {configs, MapSet.new()}, true, parser, full_ctx?)
       configs
     end)
   end
@@ -159,35 +193,40 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Prediction loop ----------------------------------------------------
 
-  defp decide(atn, configs, input, parser) do
+  defp decide(atn, configs, input, parser, full_ctx?) do
     t = TokenStream.la(input, 1)
-    reach = cached_reach_set(atn, configs, t, parser)
+    reach = cached_reach_set(atn, configs, t, parser, full_ctx?)
 
     if ParserATNConfigSet.empty?(reach) do
       predict_from(atn, configs, input, parser)
     else
-      resolve(atn, reach, input, parser)
+      resolve(atn, reach, input, parser, full_ctx?)
     end
   end
 
   # Memoizes each edge: the reach for a configuration set on a token type
-  # depends only on the grammar, the set, and the token.
-  defp cached_reach_set(atn, configs, t, parser) do
-    DFACache.memoize({atn.cache_key, :parser_edge, ParserATNConfigSet.configs(configs), t}, fn ->
-      compute_reach_set(atn, configs, t, parser)
-    end)
+  # depends only on the grammar, the set, the token, and the SLL/LL mode.
+  defp cached_reach_set(atn, configs, t, parser, full_ctx?) do
+    key = {atn.cache_key, :parser_edge, ParserATNConfigSet.configs(configs), t, full_ctx?}
+    DFACache.memoize(key, fn -> compute_reach_set(atn, configs, t, parser, full_ctx?) end)
   end
 
-  defp resolve(atn, reach, input, parser) do
+  defp resolve(atn, reach, input, parser, full_ctx?) do
     reach_configs = ParserATNConfigSet.configs(reach)
     unique = PredictionMode.unique_alt(reach_configs)
 
     cond do
       unique != 0 -> unique
-      PredictionMode.conflict?(reach, atn) -> resolve_conflict(reach_configs, parser)
-      true -> decide(atn, reach, TokenStream.consume(input), parser)
+      PredictionMode.conflict?(reach, atn) -> on_conflict(reach_configs, parser, full_ctx?)
+      true -> decide(atn, reach, TokenStream.consume(input), parser, full_ctx?)
     end
   end
+
+  # An SLL conflict may be a false ambiguity that the real outer context
+  # resolves, so retry in full context; a full-context conflict is genuine
+  # (resolved by predicate or the lowest alternative).
+  defp on_conflict(_reach_configs, _parser, false), do: throw(:sll_conflict)
+  defp on_conflict(reach_configs, parser, true), do: resolve_conflict(reach_configs, parser)
 
   # Conflicting alternatives: if any carries a semantic predicate, evaluate
   # the predicates and take the lowest alternative whose predicate holds;
@@ -287,25 +326,32 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Reach --------------------------------------------------------------
 
-  defp compute_reach_set(atn, configs, t, parser) do
-    intermediate = reachable_configs(atn, ParserATNConfigSet.configs(configs), t)
+  defp compute_reach_set(atn, configs, t, parser, full_ctx?) do
+    intermediate = reachable_configs(atn, ParserATNConfigSet.configs(configs), t, full_ctx?)
 
     {reach, _busy} =
-      Enum.reduce(intermediate, {ParserATNConfigSet.new(true), MapSet.new()}, fn config, acc ->
-        closure(atn, config, acc, false, parser)
+      Enum.reduce(intermediate, {ParserATNConfigSet.new(full_ctx?), MapSet.new()}, fn config,
+                                                                                      acc ->
+        closure(atn, config, acc, false, parser, full_ctx?)
       end)
 
     reach
   end
 
-  defp reachable_configs(atn, configs, t) do
-    Enum.flat_map(configs, &reachable_from(atn, &1, t))
+  defp reachable_configs(atn, configs, t, full_ctx?) do
+    Enum.flat_map(configs, &reachable_from(atn, &1, t, full_ctx?))
   end
 
-  defp reachable_from(atn, config, t) do
+  # A config at a rule stop consumes nothing. In full context it is dropped
+  # here (its caller follow was already consed into the closure). In SLL it is
+  # *carried forward* — an alternative that reached the decision's rule end
+  # stays alive so it can either be the unique survivor (a clean exit, no LL)
+  # or conflict with a consuming alternative (deferring to LL). This is the
+  # crux that makes the context-sensitive `ctx_b` case resolve correctly.
+  defp reachable_from(atn, config, t, full_ctx?) do
     case Map.fetch!(atn.states, config.state) do
       %State{state_type: :rule_stop} ->
-        []
+        if full_ctx?, do: [], else: [config]
 
       state ->
         for transition <- state.transitions,
@@ -316,37 +362,50 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Closure ------------------------------------------------------------
 
-  defp closure(atn, config, acc, collect, parser) do
-    closure_checking_stop_state(atn, config, acc, collect, 0, parser)
+  defp closure(atn, config, acc, collect, parser, full_ctx?) do
+    closure_checking_stop_state(atn, config, acc, collect, 0, parser, full_ctx?)
   end
 
-  defp closure_checking_stop_state(atn, config, {configs, busy}, collect, depth, parser) do
+  defp closure_checking_stop_state(
+         atn,
+         config,
+         {configs, busy},
+         collect,
+         depth,
+         parser,
+         full_ctx?
+       ) do
     if count_step() or ParserATNConfigSet.size(configs) >= @max_closure_configs or over_heap?(),
       do: prediction_overflow(parser)
 
     case Map.fetch!(atn.states, config.state) do
       %State{state_type: :rule_stop} ->
-        closure_at_stop(atn, config, {configs, busy}, collect, depth, parser)
+        closure_at_stop(atn, config, {configs, busy}, collect, depth, parser, full_ctx?)
 
       state ->
-        closure_step(atn, config, state, {configs, busy}, collect, depth, parser)
+        closure_step(atn, config, state, {configs, busy}, collect, depth, parser, full_ctx?)
     end
   end
 
-  defp closure_at_stop(atn, config, {configs, busy}, collect, depth, parser) do
+  defp closure_at_stop(atn, config, {configs, busy}, collect, depth, parser, full_ctx?) do
     if PredictionContext.empty?(config.context) do
-      {ParserATNConfigSet.add(configs, config), busy}
+      # An empty context at a rule stop means the closure fell off the end of
+      # the decision's rule into the unknown outer context. In SLL that config
+      # is marked as dipping (so a conflict can be deferred to LL); in full
+      # context the real caller follow has already been consed in, so it is a
+      # genuine accepting config and stays unmarked.
+      {ParserATNConfigSet.add(configs, fell_off(config, full_ctx?)), busy}
     else
-      pop_context(atn, config, {configs, busy}, collect, depth, parser)
+      pop_context(atn, config, {configs, busy}, collect, depth, parser, full_ctx?)
     end
   end
 
-  defp pop_context(atn, config, acc, collect, depth, parser) do
+  defp pop_context(atn, config, acc, collect, depth, parser, full_ctx?) do
     Enum.reduce(0..(PredictionContext.size(config.context) - 1), acc, fn index, {configs, busy} ->
       return_state = PredictionContext.return_state(config.context, index)
 
       if return_state == PredictionContext.empty_return_state() do
-        {ParserATNConfigSet.add(configs, %{config | context: :empty}), busy}
+        {ParserATNConfigSet.add(configs, fell_off(%{config | context: :empty}, full_ctx?)), busy}
       else
         popped = %{
           config
@@ -354,36 +413,56 @@ defmodule Seed.ParserATNSimulator do
             context: PredictionContext.parent(config.context, index)
         }
 
-        closure_checking_stop_state(atn, popped, {configs, busy}, collect, depth - 1, parser)
+        closure_checking_stop_state(
+          atn,
+          popped,
+          {configs, busy},
+          collect,
+          depth - 1,
+          parser,
+          full_ctx?
+        )
       end
     end)
   end
 
-  defp closure_step(atn, config, state, {configs, busy}, collect, depth, parser) do
+  # Marks a configuration that fell off the decision's rule into the unknown
+  # outer context. In full context this is a no-op (the real follow is known);
+  # in SLL it increments `reaches_into_outer_context`, which the config set
+  # surfaces as `dips_into_outer_context` for the conflict-vs-dip decision.
+  defp fell_off(config, true), do: config
+
+  defp fell_off(config, false),
+    do: %{config | reaches_into_outer_context: config.reaches_into_outer_context + 1}
+
+  defp closure_step(atn, config, state, {configs, busy}, collect, depth, parser, full_ctx?) do
     configs =
       if has_non_epsilon?(state), do: ParserATNConfigSet.add(configs, config), else: configs
 
     Enum.reduce(state.transitions, {configs, busy}, fn transition, acc ->
-      follow_epsilon(atn, config, transition, acc, collect, depth, parser)
+      follow_epsilon(atn, config, transition, acc, collect, depth, parser, full_ctx?)
     end)
   end
 
-  defp follow_epsilon(atn, config, transition, {configs, busy}, collect, depth, parser) do
+  defp follow_epsilon(atn, config, transition, {configs, busy}, collect, depth, parser, full_ctx?) do
     case epsilon_target(config, transition, collect, depth == 0) do
-      nil -> {configs, busy}
-      target -> visit_target(atn, target, transition, {configs, busy}, collect, depth, parser)
+      nil ->
+        {configs, busy}
+
+      target ->
+        visit_target(atn, target, transition, {configs, busy}, collect, depth, parser, full_ctx?)
     end
   end
 
-  defp visit_target(atn, target, transition, {configs, busy}, collect, depth, parser) do
+  defp visit_target(atn, target, transition, {configs, busy}, collect, depth, parser, full_ctx?) do
     if MapSet.member?(busy, target) do
       {configs, busy}
     else
-      descend(atn, target, transition, {configs, busy}, collect, depth, parser)
+      descend(atn, target, transition, {configs, busy}, collect, depth, parser, full_ctx?)
     end
   end
 
-  defp descend(atn, target, transition, {configs, busy}, collect, depth, parser) do
+  defp descend(atn, target, transition, {configs, busy}, collect, depth, parser, full_ctx?) do
     new_depth = if transition.type == :rule, do: depth + 1, else: depth
 
     if new_depth > @max_recursion_depth, do: prediction_overflow(parser)
@@ -394,7 +473,8 @@ defmodule Seed.ParserATNSimulator do
       {configs, MapSet.put(busy, target)},
       collect,
       new_depth,
-      parser
+      parser,
+      full_ctx?
     )
   end
 

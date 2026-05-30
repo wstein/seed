@@ -1,11 +1,18 @@
 # SLL Readiness — Gate Findings And Design Constraints
 
-Roadmap D (SLL-first prediction) has been attempted and reverted twice — once
-for correctness (`ctx_b` misprediction), once for a 12.8× super-linear
-performance regression. Before a third attempt, this note records the
-"prove-the-win" gate measurement and the design constraints a viable attempt
-must satisfy, so the next try starts from evidence rather than rediscovering
-the same wall. Governed by the ADR-008 benchmark gate.
+> **Outcome: attempt 3 landed and is the implementation in `Seed.ParserATNSimulator`.**
+> Two-stage SLL→LL, byte-for-byte correct (`ctx_b` + all vendored grammars),
+> and ~2× faster on `parse_throughput.exs` and the deep `sql_big` case with no
+> regression on flat JSON. The decisive fix was carrying rule-stop configs
+> forward in SLL reach (see "exact correctness mechanism" below) and falling
+> back to LL only on a genuine conflict, never on the dip flag. This note is
+> retained as the design record.
+
+Roadmap D (SLL-first prediction) was attempted and reverted twice — once for
+correctness (`ctx_b` misprediction), once for a 12.8× super-linear performance
+regression — before the third attempt succeeded. This note records the
+"prove-the-win" gate measurement and the design constraints that made the
+difference. Governed by the ADR-008 benchmark gate.
 
 ## Gate measurement (does SLL have room to win in Seed's architecture?)
 
@@ -56,6 +63,37 @@ growing live tree made it super-linear. Two design errors to avoid:
    than full context even when full context's cache reuse is high.
 3. **No double work on fallback.** When a conflict does force LL, reuse the
    SLL closure rather than recomputing from scratch.
+
+## The exact correctness mechanism (what attempts 1 and 2 each got wrong)
+
+Worked out against `ctx_b` (rule `e : INT | ;` called from `a : e ID` and
+`b : e INT ID`; input `@ 34 abc` must give `(s @ (b e 34 abc))`, i.e. `e`
+matches **empty** in context `b`). The whole game is how a config that fell off
+`e` into the outer context (the empty alternative, sitting at the rule-stop)
+participates in the SLL decision:
+
+- **Loop-exit case (e.g. `Expr` `expr` loop, extraneous `4`).** The continue
+  alternative needs an operator and dies on `4`; the exit alternative dipped to
+  the rule-stop. Reach on `4` keeps only the dipped rule-stop config → **unique
+  alt = exit** → SLL exits cleanly, *no LL*. Attempt 2 wrongly fell back to LL
+  here (it triggered on the dip flag), producing ~43 % fallback and the GC
+  blow-up.
+- **`ctx_b` case.** Alt 1 (`INT`) *can* consume `34`; alt 2 (empty) dipped to
+  the rule-stop. The fix is that in SLL the **rule-stop config must be carried
+  forward into the reach set** (ANTLR's `skippedStopStates`, re-added when
+  `!fullCtx`), instead of being dropped. Then reach = {alt 1 advanced, alt 2 at
+  rule-stop} → **not unique → conflict → defer to LL**, which resolves it with
+  the real context. Attempt 1 dropped the dipped config, got a spurious unique
+  alt 1, and mispredicted.
+
+**The single rule that satisfies both:** in SLL mode, `compute_reach_set` must
+*carry rule-stop configs forward* (don't drop them in `reachable_from`). Then
+ordinary unique-alt / `PredictionMode.conflict?` detection does the right
+thing — a lone surviving rule-stop alt is a clean exit (no LL); a rule-stop alt
+coexisting with a consuming alt is a genuine SLL conflict (defer to LL). Fall
+back to LL **only on that conflict**, never on the dip flag alone. This is the
+crux change beyond the (already-drafted, behaviour-preserving) `full_ctx?`
+threading + `fell_off/2`.
 
 ## De-risking plan (measure before replacing)
 

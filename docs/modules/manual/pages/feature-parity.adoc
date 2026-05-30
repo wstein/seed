@@ -77,12 +77,12 @@ N/A by design.
 |===
 | Feature | Seed | Notes
 
-| Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, full rule-invocation context (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]). Diffed against the reference's generated parser on vendored real-world grammars — a 1180-line SQLite (`caseInsensitive`, deep expression cascade, CTEs, subqueries), Erlang, and Elixir — across several inputs. Without an SLL fast path, full-context prediction can explode on a highly ambiguous grammar; a bounded closure then fails gracefully with a `:prediction_overflow` diagnostic instead of exhausting memory.
+| Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, two-stage SLL-first with full-context fallback (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]). Diffed against the reference's generated parser on vendored real-world grammars — a 1180-line SQLite (`caseInsensitive`, deep expression cascade, CTEs, subqueries), Erlang, and Elixir — across several inputs. A context-sensitive decision that falls through to full context can still explode on a highly ambiguous grammar; a bounded closure then fails gracefully with a `:prediction_overflow` diagnostic instead of exhausting memory.
 | Left recursion / precedence climbing | ✅ | As a sub-rule and directly as the start rule; left- *and* right-associative (`<assoc=right>`) operators diffed against the reference on the `Calc` grammar.
 | Precedence predicates | ✅ | The precedence filter evaluates them.
 | Custom semantic predicates (`{...}?`) | ✅ | Evaluated during conflict resolution via a caller-supplied `:sempred` callback (`Seed.ParserInterpreter.parse/4`, or an overridable `sempred/3` in `Seed.Generated`); the default treats every predicate as satisfied. The interpreter still cannot run the host code itself — the caller supplies the decision.
 | Embedded actions (`{...}`) | ✗ | No-op on the matched path. Plain actions need a typed-context/attribute model to be meaningful and are folded into the codegen target (Roadmap C); post-parse computation is already served by the tree walk.
-| SLL fast path with LL fallback | ✗ | Seed always predicts in full context — correct, but slower and less cacheable across call sites (see Roadmap D).
+| SLL fast path with LL fallback | ✅ | Two-stage SLL-first prediction (empty outer context, start state shared across call sites) with full-context fallback on a genuine SLL conflict. The crux: a config that dips into the outer context is *carried at its rule-stop* into the reach, so a clean loop-exit stays unique (no LL) while a context-sensitive decision (`ctx_b`) conflicts and defers to LL. Validated byte-for-byte (incl. `ctx_b` and all vendored grammars) and benchmark-gated — ~2× faster on `parse_throughput.exs` and on deep grammars (SQLite), no regression on the highly-cacheable flat case (Roadmap D).
 | Decision memoization | ◐ | `Seed.DFACache` (ETS) memoizes start states and edges; it is a pure speedup, not the reference's persisted DFA edge structure.
 |===
 
@@ -164,14 +164,19 @@ shippable behind the project's quality gate (`make verify`).
   zero-dependency and generated parsers depend only on it.
 | Typed contexts and an ergonomic, ANTLR-target-like generated API.
 
-| D. SLL-first prediction
-| Add a context-free SLL pass with full-context fallback on conflict, with a
-  DFA cacheable across call sites. Needs a faithful port of the reference's
-  full-context closure semantics (a first attempt was reverted for
-  mispredicting the context-sensitive `ctx_b` case), and is governed by the
-  benchmark gate in xref:architecture:09-architecture-decisions.adoc#adr-008[ADR-008].
-| The main remaining prediction-time performance lever (correctness is already
-  validated under full context).
+| D. SLL-first prediction _(done)_
+| A context-free SLL pass (empty outer context, start state shared across call
+  sites) runs first; a genuine SLL conflict falls back to full context. The
+  crux — and what two reverted attempts got wrong — is that a config dipping
+  into the outer context must be *carried at its rule-stop* into the reach: a
+  lone surviving rule-stop alt is a clean exit (no LL), while one coexisting
+  with a consuming alt is a real conflict that defers to LL (so the
+  context-sensitive `ctx_b` case resolves correctly). Validated byte-for-byte
+  and benchmark-gated per
+  xref:architecture:09-architecture-decisions.adoc#adr-008[ADR-008] — ~2×
+  faster on `parse_throughput.exs` and on deep grammars, no regression on the
+  highly-cacheable flat case.
+| The main prediction-time performance lever, now realized.
 
 | E. Tooling parity _(done)_
 | `TokenStreamRewriter`, tree XPath, a bail error strategy
