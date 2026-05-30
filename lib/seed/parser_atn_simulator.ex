@@ -98,7 +98,12 @@ defmodule Seed.ParserATNSimulator do
     start = start_state(atn, decision_state, :empty, parser, decision, false)
     decide(atn, start, parser.input, parser, false)
   catch
-    :sll_conflict -> ll_predict(atn, decision_state, parser, decision)
+    :sll_conflict ->
+      # The SLL pass spent part of this decision's closure budget; give the LL
+      # retry its own full budget so a complex full-context closure is not
+      # starved into a spurious `:prediction_overflow`.
+      Process.put(:seed_closure_steps, 0)
+      ll_predict(atn, decision_state, parser, decision)
   end
 
   defp ll_predict(atn, decision_state, parser, decision) do
