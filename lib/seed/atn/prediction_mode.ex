@@ -10,7 +10,6 @@ defmodule Seed.ATN.PredictionMode do
   """
 
   alias Seed.ATN.ATNConfig
-  alias Seed.ATN.ParserATNConfigSet
 
   @invalid_alt 0
 
@@ -40,9 +39,8 @@ defmodule Seed.ATN.PredictionMode do
   to full context immediately — is strictly cheaper here, and the result is
   identical (LL resolves it). See `Seed.ParserATNSimulator`.
   """
-  @spec conflict?(ParserATNConfigSet.t(), Seed.ATN.t()) :: boolean()
-  def conflict?(config_set, atn) do
-    configs = ParserATNConfigSet.configs(config_set)
+  @spec conflict?([ATNConfig.t()], Seed.ATN.t()) :: boolean()
+  def conflict?(configs, atn) when is_list(configs) do
     all_in_rule_stop?(configs, atn) or conflicting_alts?(configs)
   end
 

@@ -23,6 +23,12 @@ defmodule Seed.DFA do
   @typedoc "A stable integer id for an interned configuration set."
   @type state_id :: non_neg_integer()
 
+  @typedoc """
+  An edge target: another state, or `:empty` (the reach is empty — a cached
+  no-viable transition the caller resolves with the source state).
+  """
+  @type edge_target :: state_id() | :empty
+
   @doc """
   Interns `configs` under `cache_key`, returning its stable id (allocating one
   on first sight), or `nil` when the cache table is absent.
@@ -55,8 +61,8 @@ defmodule Seed.DFA do
     end)
   end
 
-  @doc "Returns the target state of the edge from `id` on `token`, or `nil`."
-  @spec edge(integer() | nil, state_id(), integer(), boolean()) :: state_id() | nil
+  @doc "Returns the target of the edge from `id` on `token`, or `nil` if none is recorded."
+  @spec edge(integer() | nil, state_id(), integer(), boolean()) :: edge_target() | nil
   def edge(cache_key, id, token, full_ctx?) do
     with_table(nil, fn table ->
       case :ets.lookup(table, {cache_key, :dfa_edge, id, token, full_ctx?}) do
@@ -66,8 +72,8 @@ defmodule Seed.DFA do
     end)
   end
 
-  @doc "Records the edge from `id` on `token` to `target_id`."
-  @spec put_edge(integer() | nil, state_id(), integer(), boolean(), state_id()) :: :ok
+  @doc "Records the edge from `id` on `token` to `target` (a state id or `:empty`)."
+  @spec put_edge(integer() | nil, state_id(), integer(), boolean(), edge_target()) :: :ok
   def put_edge(cache_key, id, token, full_ctx?, target_id) do
     with_table(:ok, fn table ->
       :ets.insert(table, {{cache_key, :dfa_edge, id, token, full_ctx?}, target_id})

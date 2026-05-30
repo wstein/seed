@@ -219,15 +219,24 @@ defmodule Seed.ParserInterpreterTest do
     assert {:error, [%Seed.Diagnostic{}]} = ParserInterpreter.parse(parser, tokens, 0, bail: true)
   end
 
-  test "parser predictions are memoized in the DFA cache" do
+  test "parser predictions populate the persisted DFA (interned states, edges, resolutions)" do
     parser_grammar = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
     tokens = tokenize("Expr", "expr")
 
     assert {:ok, _tree} = ParserInterpreter.parse(parser_grammar, tokens, 0)
 
-    keys = :seed_dfa_cache |> :ets.tab2list() |> Enum.map(&elem(&1, 0))
-    assert Enum.any?(keys, &(tuple_size(&1) > 1 and elem(&1, 1) in [:parser_start, :parser_edge]))
+    tags = :seed_dfa_cache |> :ets.tab2list() |> Enum.map(&elem(&1, 0)) |> Enum.map(&kind/1)
+    # The DFA was built: interned states, transition edges, and cached
+    # per-state resolutions all appear.
+    assert :dfa_configs in tags
+    assert :dfa_edge in tags
+    assert :dfa_pred in tags
   end
+
+  # The discriminating element of a DFA cache key, e.g. `{cache_key, :dfa_edge,
+  # …}` -> `:dfa_edge`.
+  defp kind(key) when is_tuple(key) and tuple_size(key) > 1, do: elem(key, 1)
+  defp kind(_key), do: nil
 
   defp tokenize(grammar, name) do
     lexer_grammar = Interp.load!(Path.join(@interp_dir, grammar <> "Lexer.interp"))

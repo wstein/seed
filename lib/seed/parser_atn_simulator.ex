@@ -28,7 +28,14 @@ defmodule Seed.ParserATNSimulator do
   irreducible conflict, in which case the lowest alternative wins (ANTLR's
   default ambiguity resolution). Left-recursive decisions are handled by the
   precedence filter, which uses the parser's current precedence to drop
-  lower-priority alternatives. Results are memoized in `Seed.DFACache`.
+  lower-priority alternatives.
+
+  The walk is backed by a **persisted DFA** (`Seed.DFA`): each configuration
+  set is interned to an integer id, the reach for `(state, token)` is recorded
+  as an integer edge, and each state's resolution (accept / conflict /
+  continue) is cached. After warm-up a step is two integer lookups rather than
+  a config-set rehash and re-resolution, which is where most of the
+  prediction-time speed comes from.
   """
 
   alias Seed.ATN.ATNConfig
@@ -39,6 +46,7 @@ defmodule Seed.ParserATNSimulator do
   alias Seed.ATN.SemanticContext.PrecedencePredicate
   alias Seed.ATN.State
   alias Seed.ATN.Transition
+  alias Seed.DFA
   alias Seed.DFACache
   alias Seed.Diagnostic
   alias Seed.Parser
@@ -95,8 +103,8 @@ defmodule Seed.ParserATNSimulator do
   # consuming alternative coexisting with one that dipped into the unknown
   # outer context — retries in full context.
   defp try_sll(atn, decision_state, parser, decision) do
-    start = start_state(atn, decision_state, :empty, parser, decision, false)
-    decide(atn, start, parser.input, parser, false)
+    {id, configs} = sll_start(atn, decision_state, decision, parser)
+    decide(atn, {id, configs}, parser.input, parser, false)
   catch
     :sll_conflict ->
       # The SLL pass spent part of this decision's closure budget; give the LL
@@ -108,22 +116,42 @@ defmodule Seed.ParserATNSimulator do
 
   defp ll_predict(atn, decision_state, parser, decision) do
     outer_context = from_rule_context(atn, parser.frames)
-    start = start_state(atn, decision_state, outer_context, parser, decision, true)
-
-    start =
-      if precedence_decision?(decision_state),
-        do: apply_precedence_filter(start, parser),
-        else: start
-
-    decide(atn, start, parser.input, parser, true)
+    {id, configs} = ll_start(atn, decision_state, decision, outer_context, parser)
+    decide(atn, {id, configs}, parser.input, parser, true)
   end
 
-  # The decision's start-state closure, memoized. For the empty (SLL) context
-  # the key is shared across every call site, which is the point.
-  defp start_state(atn, decision_state, context, parser, decision, full_ctx?) do
-    DFACache.memoize({atn.cache_key, :parser_start, decision, context, full_ctx?}, fn ->
-      compute_start_state(atn, decision_state, context, parser, full_ctx?)
+  # The SLL start state has an empty outer context and no precedence filter, so
+  # its interned id and config list are shared across every call site —
+  # memoized by decision alone.
+  defp sll_start(atn, decision_state, decision, parser) do
+    DFACache.memoize({atn.cache_key, :sll_start, decision}, fn ->
+      atn
+      |> compute_start_state(decision_state, :empty, parser, false)
+      |> intern_start(atn)
     end)
+  end
+
+  # A non-precedence LL start depends only on the outer context, so it is
+  # memoized; a precedence (left-recursive) start is filtered by the parser's
+  # current precedence, so it is computed and interned fresh each time.
+  defp ll_start(atn, decision_state, decision, outer_context, parser) do
+    if precedence_decision?(decision_state) do
+      atn
+      |> compute_start_state(decision_state, outer_context, parser, true)
+      |> apply_precedence_filter(parser)
+      |> intern_start(atn)
+    else
+      DFACache.memoize({atn.cache_key, :ll_start, decision, outer_context}, fn ->
+        atn
+        |> compute_start_state(decision_state, outer_context, parser, true)
+        |> intern_start(atn)
+      end)
+    end
+  end
+
+  defp intern_start(start_set, atn) do
+    configs = ParserATNConfigSet.configs(start_set)
+    {DFA.intern(atn.cache_key, configs), configs}
   end
 
   # Builds the prediction context for the call stack above the decision.
@@ -198,42 +226,89 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Prediction loop ----------------------------------------------------
 
-  defp decide(atn, configs, input, parser, full_ctx?) do
+  # Walks the decision as a DFA: from the current state `id` (an interned
+  # config set), the edge on the next token is a cached integer target, and the
+  # target state's resolution (accept / conflict / continue) is cached too — so
+  # a warm step is two integer lookups, not a config-set rehash and a
+  # re-resolution. `configs` may be `nil` on a warm step (fetched only when an
+  # edge or resolution misses).
+  defp decide(atn, {id, configs}, input, parser, full_ctx?) do
     t = TokenStream.la(input, 1)
-    reach = cached_reach_set(atn, configs, t, parser, full_ctx?)
 
-    if ParserATNConfigSet.empty?(reach) do
-      predict_from(atn, configs, input, parser)
-    else
-      resolve(atn, reach, input, parser, full_ctx?)
+    case DFA.edge(atn.cache_key, id, t, full_ctx?) do
+      nil -> compute_edge(atn, id, configs, t, input, parser, full_ctx?)
+      :empty -> predict_from(atn, fetch(atn, id, configs), input, parser)
+      target_id -> arrive(atn, target_id, input, parser, full_ctx?)
     end
   end
 
-  # Memoizes each edge: the reach for a configuration set on a token type
-  # depends only on the grammar, the set, the token, and the SLL/LL mode. The
-  # `reaches_into_outer_context` counter is normalized out of the key — it does
-  # not change which states/alts are reachable (only the boolean dip flag,
-  # which the recomputed reach derives for itself), and in SLL it increments
-  # each time a rule-stop config is carried forward, which would otherwise make
-  # the key miss on every step of a multi-token decision.
-  defp cached_reach_set(atn, configs, t, parser, full_ctx?) do
-    key_configs =
-      Enum.map(ParserATNConfigSet.configs(configs), &%{&1 | reaches_into_outer_context: 0})
+  # Edge miss: compute the reach, intern it, record the edge, and act on the
+  # new state. An empty reach is recorded as `:empty` so the no-viable path is
+  # cached too.
+  defp compute_edge(atn, id, configs, t, input, parser, full_ctx?) do
+    configs = fetch(atn, id, configs)
 
-    key = {atn.cache_key, :parser_edge, key_configs, t, full_ctx?}
-    DFACache.memoize(key, fn -> compute_reach_set(atn, configs, t, parser, full_ctx?) end)
-  end
+    case compute_reach_set(atn, configs, t, parser, full_ctx?) do
+      [] ->
+        DFA.put_edge(atn.cache_key, id, t, full_ctx?, :empty)
+        predict_from(atn, configs, input, parser)
 
-  defp resolve(atn, reach, input, parser, full_ctx?) do
-    reach_configs = ParserATNConfigSet.configs(reach)
-    unique = PredictionMode.unique_alt(reach_configs)
+      reach ->
+        target_id = DFA.intern(atn.cache_key, reach)
+        DFA.put_edge(atn.cache_key, id, t, full_ctx?, target_id)
 
-    cond do
-      unique != 0 -> unique
-      PredictionMode.conflict?(reach, atn) -> on_conflict(reach_configs, parser, full_ctx?)
-      true -> decide(atn, reach, TokenStream.consume(input), parser, full_ctx?)
+        act(
+          atn,
+          prediction!(atn, target_id, reach, full_ctx?),
+          {target_id, reach},
+          input,
+          parser,
+          full_ctx?
+        )
     end
   end
+
+  # Arrive at an interned state via a cached edge: take its cached resolution,
+  # computing it (and fetching the configs) only on a miss.
+  defp arrive(atn, id, input, parser, full_ctx?) do
+    case DFA.prediction(atn.cache_key, id, full_ctx?) do
+      {:accept, alt} -> alt
+      :conflict -> on_conflict(DFA.configs(atn.cache_key, id), parser, full_ctx?)
+      :continue -> decide(atn, {id, nil}, TokenStream.consume(input), parser, full_ctx?)
+      nil -> resolve_state(atn, id, input, parser, full_ctx?)
+    end
+  end
+
+  defp resolve_state(atn, id, input, parser, full_ctx?) do
+    configs = DFA.configs(atn.cache_key, id)
+    act(atn, prediction!(atn, id, configs, full_ctx?), {id, configs}, input, parser, full_ctx?)
+  end
+
+  defp act(atn, prediction, {id, configs}, input, parser, full_ctx?) do
+    case prediction do
+      {:accept, alt} -> alt
+      :conflict -> on_conflict(configs, parser, full_ctx?)
+      :continue -> decide(atn, {id, configs}, TokenStream.consume(input), parser, full_ctx?)
+    end
+  end
+
+  # Computes and caches a state's resolution: a unique alternative accepts; an
+  # irreducible conflict stops (to fall over to LL, or be resolved in LL);
+  # otherwise prediction continues to the next token.
+  defp prediction!(atn, id, configs, full_ctx?) do
+    prediction =
+      cond do
+        (alt = PredictionMode.unique_alt(configs)) != 0 -> {:accept, alt}
+        PredictionMode.conflict?(configs, atn) -> :conflict
+        true -> :continue
+      end
+
+    DFA.put_prediction(atn.cache_key, id, full_ctx?, prediction)
+    prediction
+  end
+
+  defp fetch(_atn, _id, configs) when is_list(configs), do: configs
+  defp fetch(atn, id, nil), do: DFA.configs(atn.cache_key, id)
 
   # An SLL conflict may be a false ambiguity that the real outer context
   # resolves, so retry in full context; a full-context conflict is genuine
@@ -324,7 +399,7 @@ defmodule Seed.ParserATNSimulator do
   # parser back to the interpreter for panic-mode resynchronization (the same
   # channel as a match failure).
   defp predict_from(atn, configs, input, parser) do
-    case stop_state_alts(atn, ParserATNConfigSet.configs(configs)) do
+    case stop_state_alts(atn, configs) do
       [] -> fail_prediction(parser, no_viable_alternative(input))
       alts -> Enum.min(alts)
     end
@@ -356,8 +431,11 @@ defmodule Seed.ParserATNSimulator do
 
   # --- Reach --------------------------------------------------------------
 
+  # Takes and returns a config *list* (the interned state currency). Internally
+  # it still builds a `ParserATNConfigSet` so configs merge/dedup correctly,
+  # then returns its config list.
   defp compute_reach_set(atn, configs, t, parser, full_ctx?) do
-    intermediate = reachable_configs(atn, ParserATNConfigSet.configs(configs), t, full_ctx?)
+    intermediate = reachable_configs(atn, configs, t, full_ctx?)
 
     {reach, _busy} =
       Enum.reduce(intermediate, {ParserATNConfigSet.new(full_ctx?), MapSet.new()}, fn config,
@@ -365,7 +443,7 @@ defmodule Seed.ParserATNSimulator do
         closure(atn, config, acc, false, parser, full_ctx?)
       end)
 
-    reach
+    ParserATNConfigSet.configs(reach)
   end
 
   defp reachable_configs(atn, configs, t, full_ctx?) do
