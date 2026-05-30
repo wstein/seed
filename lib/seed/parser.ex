@@ -328,7 +328,7 @@ defmodule Seed.Parser do
   # depth, pending}`, which also distinguishes a callee reached via different
   # call sites.
   defp expects_in_context?(atn, state_number, symbol, frames),
-    do: expects_ctx(atn, state_number, symbol, frames, [], MapSet.new(), %{})
+    do: expects_ctx(atn, state_number, symbol, frames, [], %{}, %{})
 
   defp expects_ctx(atn, state_number, symbol, frames, pending, called, visited) do
     key = {state_number, length(frames), pending}
@@ -362,7 +362,7 @@ defmodule Seed.Parser do
          called,
          visited
        ) do
-    if MapSet.member?(called, t.rule_index) do
+    if Map.has_key?(called, t.rule_index) do
       false
     else
       expects_ctx(
@@ -371,7 +371,7 @@ defmodule Seed.Parser do
         symbol,
         frames,
         [t.follow_state | pending],
-        MapSet.put(called, t.rule_index),
+        Map.put(called, t.rule_index, true),
         visited
       )
     end
@@ -411,7 +411,7 @@ defmodule Seed.Parser do
          visited
        ) do
     follow = hd(Map.fetch!(atn.states, invoking).transitions).follow_state
-    expects_ctx(atn, follow, symbol, rest, [], MapSet.new(), visited)
+    expects_ctx(atn, follow, symbol, rest, [], %{}, visited)
   end
 
   defp token_mismatch(parser, token, token_type) do

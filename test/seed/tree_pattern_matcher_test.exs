@@ -1,6 +1,7 @@
 defmodule Seed.TreePatternMatcherTest do
   use ExUnit.Case, async: true
 
+  alias Seed.ATN.BypassAlts
   alias Seed.Interp
   alias Seed.ParseTreeMatch
   alias Seed.TreePatternMatcher
@@ -51,7 +52,7 @@ defmodule Seed.TreePatternMatcherTest do
   # parsing. The bypass ATN therefore gets its own `cache_key`.
   test "bypass ATN uses a cache_key distinct from the source parser ATN" do
     parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
-    bypass = Seed.ATN.BypassAlts.add(parser.atn)
+    bypass = BypassAlts.add(parser.atn)
     assert bypass.cache_key != parser.atn.cache_key
   end
 
