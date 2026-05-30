@@ -43,6 +43,34 @@ defmodule Seed.TreePatternMatcherTest do
     end
   end
 
+  # The bypass ATN is a different graph (extra states/decisions, rewired rule
+  # starts) but shares the parser's DFA cache, keyed in part by `cache_key`.
+  # Parser start states are keyed `{cache_key, :parser_start, decision, …}`
+  # *without* the config set, so a shared `cache_key` is a latent
+  # cross-namespace collision hazard between pattern compilation and normal
+  # parsing. The bypass ATN therefore gets its own `cache_key`.
+  test "bypass ATN uses a cache_key distinct from the source parser ATN" do
+    parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    bypass = Seed.ATN.BypassAlts.add(parser.atn)
+    assert bypass.cache_key != parser.atn.cache_key
+  end
+
+  # Smoke: compiling patterns first (populating the cache via the bypass ATN),
+  # then parsing with the ordinary grammar, still yields a correct tree.
+  test "compiling patterns leaves normal parsing correct" do
+    lexer = Interp.load!(Path.join(@interp_dir, "ExprLexer.interp"))
+    parser = Interp.load!(Path.join(@interp_dir, "Expr.interp"))
+    matcher = TreePatternMatcher.new(lexer, parser)
+
+    _ = TreePatternMatcher.compile(matcher, "<ID> = <expr>;", 1)
+    _ = TreePatternMatcher.compile(matcher, "<expr> + <expr>", 2)
+
+    {:ok, tree} = Seed.parse(parser, lexer, "x = 3+4; y = z;", 0)
+
+    assert Trees.to_string_tree(tree, parser) ==
+             "(prog (stat x = (expr (expr 3) + (expr 4)) ;) (stat y = (expr z) ;) <EOF>)"
+  end
+
   # Reproduces scripts/PatternDump.java's canonical dump.
   defp render(compiled, tree, xpath, grammar) do
     header = "PATTERN " <> Trees.to_string_tree(compiled.tree, grammar) <> "\n"

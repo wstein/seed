@@ -30,7 +30,13 @@ defmodule Seed.ATN.BypassAlts do
   def add(%ATN{grammar_type: :parser} = atn) do
     nrules = length(atn.rule_to_start_state)
     token_types = Enum.map(0..(nrules - 1), &(atn.max_token_type + &1 + 1))
-    atn = %{atn | rule_to_token_type: token_types}
+
+    # The bypass ATN is a *different* graph (extra states, decisions, and
+    # rule-start rewiring), but `Seed.DFACache` keys parser start states by
+    # `{cache_key, :parser_start, decision, …}` without the config set — so
+    # sharing the source ATN's `cache_key` would let a pattern compile poison
+    # the entries normal parsing reads (and vice versa). Give it its own key.
+    atn = %{atn | rule_to_token_type: token_types, cache_key: bypass_cache_key(atn.cache_key)}
 
     Enum.reduce(0..(nrules - 1), atn, &add_rule_bypass/2)
   end
@@ -38,6 +44,8 @@ defmodule Seed.ATN.BypassAlts do
   def add(%ATN{grammar_type: :lexer}) do
     raise ArgumentError, "rule-bypass transitions apply only to parser ATNs"
   end
+
+  defp bypass_cache_key(cache_key), do: :erlang.phash2({cache_key, :bypass})
 
   defp add_rule_bypass(rule_index, atn) do
     base = atn.num_states
