@@ -33,7 +33,10 @@ defmodule Seed.ParserInterpreterTest do
     %{name: "calc", grammar: "Calc", start_rule: 0},
     # Misc stresses Unicode code points (Greek), string escapes, and a custom
     # named channel that must be filtered from the parser.
-    %{name: "misc", grammar: "Misc", start_rule: 0}
+    %{name: "misc", grammar: "Misc", start_rule: 0},
+    # More stresses a token built across lexer rules with `more` and finalized
+    # with `type()`.
+    %{name: "more", grammar: "More", start_rule: 0}
   ]
 
   for fixture <- @cases do
