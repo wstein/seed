@@ -165,9 +165,10 @@ defmodule Seed.Parser do
       and parsing proceeds without consuming.
 
   Insertion is only attempted when the current token is reachable past the
-  expected one (an ATN check, `expects?/3`), which keeps it from looping.
-  When neither single-token recovery applies, the parser is thrown back for
-  panic-mode resynchronization (see `sync/1`).
+  expected one, following the rule-invocation context into the caller (an ATN
+  check, `expects_in_context?/4`), which keeps it from looping. When neither
+  single-token recovery applies, the parser is thrown back for panic-mode
+  resynchronization (see `sync/1`).
   """
   @spec match(t(), integer()) :: t()
   def match(%__MODULE__{} = parser, token_type) do
@@ -237,13 +238,16 @@ defmodule Seed.Parser do
 
   # Single-token insertion is viable when the grammar has a transition for
   # the expected token out of the current state and, past that token, the
-  # *current* token can still continue the rule. The second check
-  # (`expects?/3`) is what keeps insertion from looping: a fabricated token
-  # is only accepted when it lets real input make progress.
+  # *current* token can still continue — following the rule-invocation context
+  # into the caller, as ANTLR's `nextTokens(next, ctx)` does. That second
+  # check is what keeps insertion from looping: a fabricated token is only
+  # accepted when it lets real input make progress. The context is essential
+  # when the expected token ends a rule (e.g. a trailing `;`): the token that
+  # may follow it lives in the caller (e.g. `EOF` after a `stat` in `prog`).
   defp can_insert?(parser, expected_type, current_type) do
     case next_state_after(parser, expected_type) do
       nil -> false
-      next -> expects?(parser.atn, next, current_type)
+      next -> expects_in_context?(parser.atn, next, current_type, parser.frames)
     end
   end
 
@@ -310,6 +314,63 @@ defmodule Seed.Parser do
     else
       Transition.matches?(transition, symbol)
     end
+  end
+
+  # Like `expects?/3`, but at a rule-stop it follows the return into the caller
+  # (using the active frame stack) instead of giving up — the faithful analogue
+  # of ANTLR's `ATN.nextTokens(state, context)`. `frames` is the rule stack
+  # whose head is the rule the walk is currently inside.
+  defp expects_in_context?(atn, state_number, symbol, frames),
+    do: expects_in_context?(atn, state_number, symbol, frames, %{})
+
+  defp expects_in_context?(atn, state_number, symbol, frames, visited) do
+    key = {state_number, length(frames)}
+
+    if Map.has_key?(visited, key) do
+      false
+    else
+      visited = Map.put(visited, key, true)
+
+      case Map.fetch!(atn.states, state_number) do
+        %State{state_type: :rule_stop} ->
+          follow_return_expects?(atn, symbol, frames, visited)
+
+        %State{transitions: transitions} ->
+          Enum.any?(
+            transitions,
+            &transition_expects_in_context?(atn, &1, symbol, frames, visited)
+          )
+      end
+    end
+  end
+
+  defp transition_expects_in_context?(atn, transition, symbol, frames, visited) do
+    if Transition.epsilon?(transition) do
+      expects_in_context?(atn, transition.target, symbol, frames, visited)
+    else
+      Transition.matches?(transition, symbol)
+    end
+  end
+
+  # Pop the current rule and continue the walk from the caller's follow state.
+  defp follow_return_expects?(_atn, _symbol, [], _visited), do: false
+
+  defp follow_return_expects?(
+         _atn,
+         _symbol,
+         [%ParserRuleContext{invoking_state: -1} | _],
+         _visited
+       ),
+       do: false
+
+  defp follow_return_expects?(
+         atn,
+         symbol,
+         [%ParserRuleContext{invoking_state: invoking} | rest],
+         visited
+       ) do
+    follow = hd(Map.fetch!(atn.states, invoking).transitions).follow_state
+    expects_in_context?(atn, follow, symbol, rest, visited)
   end
 
   defp token_mismatch(parser, token, token_type) do

@@ -108,9 +108,9 @@ N/A by design.
 | Feature | Seed | Notes
 
 | Structured diagnostics | ✅ | `Seed.Diagnostic` returned as values (xref:architecture:09-architecture-decisions.adoc#adr-003[ADR-003]).
-| Single-token deletion and insertion | ✅ | Insertion gated by an ATN reachability check so it cannot loop.
+| Single-token deletion and insertion | ✅ | Insertion is gated by a context-aware ATN reachability check (`expects_in_context?`, following the rule-invocation stack into the caller, as ANTLR's `nextTokens(state, ctx)` does) so it cannot loop, yet still fires when the expected token ends a rule (e.g. a trailing `;` whose follower `EOF` lives in the caller).
 | Panic-mode resynchronization (follow sets) | ✅ | For both a token mismatch and a no-viable-alternative decision.
-| Error nodes in the recovered tree | ✅ | Including a fabricated `<missing …>` token for an insertion.
+| Error nodes in the recovered tree | ✅ | Including a fabricated `<missing …>` token for an insertion. The recovered tree is diffed byte-for-byte against ANTLR's `DefaultErrorStrategy` on malformed input (insertion, extraneous-token deletion, no-viable resync). One known divergence: because Seed predicts in full context rather than SLL, a no-viable error at a loop-exit is reported one rule deeper than ANTLR's SLL-first prediction would (the recovery is sound, only located differently — it converges if SLL lands, Roadmap D).
 | Error strategy: recover (default) or bail | ✅ | `Seed.ParserInterpreter.parse/4`'s `:bail` option aborts at the first error with one diagnostic and no tree, the `BailErrorStrategy` equivalent; the default recovers. A fully pluggable strategy object is not provided.
 | Error listeners | ⊘ | By design — structured diagnostics-as-values serve the same tooling purpose (ADR-003).
 |===
