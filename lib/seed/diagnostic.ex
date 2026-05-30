@@ -19,6 +19,7 @@ defmodule Seed.Diagnostic do
           | :missing_token
           | :no_viable_alternative
           | :no_viable_token
+          | :prediction_overflow
 
   @type t :: %__MODULE__{
           code: code(),

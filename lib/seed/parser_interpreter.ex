@@ -70,6 +70,9 @@ defmodule Seed.ParserInterpreter do
   catch
     # Bail mode aborts at the first error with that single diagnostic.
     {:seed_bail, diagnostic} -> {:error, [diagnostic]}
+    # Prediction blew past its configuration bound (ambiguous grammar); fail
+    # gracefully rather than exhaust memory.
+    {:seed_overflow, diagnostic} -> {:error, [diagnostic]}
   end
 
   defp build_tree(atn, token_stream, start_rule_index, vocabulary, opts) do

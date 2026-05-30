@@ -10,6 +10,13 @@ defmodule Seed.ParserATNSimulator do
   reference's separate SLL-first stage, which trades that context away for
   cacheability; adding that optimization is future work.
 
+  Without that SLL fast path, full-context prediction can explode on a highly
+  ambiguous grammar (a single decision exploring an unbounded
+  configuration/context space). A closure that exceeds its step,
+  configuration, recursion-depth, or heap bound therefore fails *gracefully*
+  with a `:prediction_overflow` diagnostic rather than exhausting memory or
+  burning CPU — the parse returns `{:error, …}` instead of taking down the VM.
+
   From the decision's start state it computes the epsilon-closure, then
   advances the configuration set token by token (over a private lookahead
   copy of the input) until one alternative survives or the survivors are in
@@ -32,12 +39,32 @@ defmodule Seed.ParserATNSimulator do
   alias Seed.Parser
   alias Seed.TokenStream
 
+  # Bounds a single decision's closure so full-context prediction cannot
+  # exhaust memory or burn CPU on an ambiguous grammar (Seed has no SLL fast
+  # path to bound it). Real grammars stay far below these even on complex
+  # decisions, so exceeding any of them means prediction is exploding, and it
+  # fails gracefully with a diagnostic. The heap-size guard is the catch-all:
+  # the explosion can hide in a few configurations carrying gigantic merged
+  # prediction contexts, which a count- or depth-based limit alone misses.
+  @max_recursion_depth 2_000
+  @max_closure_configs 50_000
+  # Total closure steps a single decision may take. Real decisions take at
+  # most tens of thousands; this catches an explosion in well under a second
+  # (by work done, not memory consumed — the giant merged context that hides
+  # the blow-up shows up as steps before it shows up as configurations).
+  @max_closure_steps 200_000
+  # ~128 MB of process heap (words) — the catch-all for an explosion that is
+  # memory-heavy but neither step- nor configuration-heavy (a few giant merged
+  # contexts). Well under the 2 GB VM cap.
+  @max_closure_heap_words 16_000_000
+
   @doc """
   Returns the 1-based alternative to take at `decision` given the parser's
   current position and rule context.
   """
   @spec adaptive_predict(Parser.t(), non_neg_integer()) :: pos_integer()
   def adaptive_predict(%Parser{atn: atn} = parser, decision) do
+    Process.put(:seed_closure_steps, 0)
     decision_state = Map.fetch!(atn.states, Enum.at(atn.decision_to_state, decision))
     outer_context = from_rule_context(atn, parser.frames)
 
@@ -294,6 +321,9 @@ defmodule Seed.ParserATNSimulator do
   end
 
   defp closure_checking_stop_state(atn, config, {configs, busy}, collect, depth, parser) do
+    if count_step() or ParserATNConfigSet.size(configs) >= @max_closure_configs or over_heap?(),
+      do: prediction_overflow(parser)
+
     case Map.fetch!(atn.states, config.state) do
       %State{state_type: :rule_stop} ->
         closure_at_stop(atn, config, {configs, busy}, collect, depth, parser)
@@ -349,17 +379,52 @@ defmodule Seed.ParserATNSimulator do
     if MapSet.member?(busy, target) do
       {configs, busy}
     else
-      new_depth = if transition.type == :rule, do: depth + 1, else: depth
-
-      closure_checking_stop_state(
-        atn,
-        target,
-        {configs, MapSet.put(busy, target)},
-        collect,
-        new_depth,
-        parser
-      )
+      descend(atn, target, transition, {configs, busy}, collect, depth, parser)
     end
+  end
+
+  defp descend(atn, target, transition, {configs, busy}, collect, depth, parser) do
+    new_depth = if transition.type == :rule, do: depth + 1, else: depth
+
+    if new_depth > @max_recursion_depth, do: prediction_overflow(parser)
+
+    closure_checking_stop_state(
+      atn,
+      target,
+      {configs, MapSet.put(busy, target)},
+      collect,
+      new_depth,
+      parser
+    )
+  end
+
+  # Counts one closure step against this decision's budget (reset per
+  # `adaptive_predict`); returns `true` once the budget is exceeded.
+  defp count_step do
+    steps = Process.get(:seed_closure_steps, 0) + 1
+    Process.put(:seed_closure_steps, steps)
+    steps > @max_closure_steps
+  end
+
+  defp over_heap? do
+    {:total_heap_size, words} = :erlang.process_info(self(), :total_heap_size)
+    words > @max_closure_heap_words
+  end
+
+  @spec prediction_overflow(Parser.t()) :: no_return()
+  defp prediction_overflow(parser) do
+    token = TokenStream.lt(parser.input, 1)
+
+    diagnostic =
+      Diagnostic.error(
+        :prediction_overflow,
+        "prediction exceeded the configuration bound; the grammar is too ambiguous " <>
+          "for full-context prediction at this point",
+        line: token.line,
+        column: token.column
+      )
+
+    throw({:seed_overflow, diagnostic})
   end
 
   defp epsilon_target(config, %Transition{type: :rule} = transition, _collect, _in_context) do

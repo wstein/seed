@@ -59,6 +59,10 @@ defmodule Seed.ATN.ParserATNConfigSet do
   def empty?(%__MODULE__{order: []}), do: true
   def empty?(%__MODULE__{}), do: false
 
+  @doc "The number of distinct configurations in the set (O(1))."
+  @spec size(t()) :: non_neg_integer()
+  def size(%__MODULE__{lookup: lookup}), do: map_size(lookup)
+
   defp merge_into(existing, config, full_ctx) do
     %{
       existing

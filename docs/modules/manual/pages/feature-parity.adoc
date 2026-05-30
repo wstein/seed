@@ -77,7 +77,7 @@ N/A by design.
 |===
 | Feature | Seed | Notes
 
-| Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, full rule-invocation context (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]). Diffed against the reference's generated parser on a vendored 1180-line SQLite grammar (`caseInsensitive`, deep expression cascade, joins, CTEs, subqueries) across several queries.
+| Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, full rule-invocation context (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]). Diffed against the reference's generated parser on vendored real-world grammars — a 1180-line SQLite (`caseInsensitive`, deep expression cascade, CTEs, subqueries), Erlang, and Elixir — across several inputs. Without an SLL fast path, full-context prediction can explode on a highly ambiguous grammar; a bounded closure then fails gracefully with a `:prediction_overflow` diagnostic instead of exhausting memory.
 | Left recursion / precedence climbing | ✅ | As a sub-rule and directly as the start rule; left- *and* right-associative (`<assoc=right>`) operators diffed against the reference on the `Calc` grammar.
 | Precedence predicates | ✅ | The precedence filter evaluates them.
 | Custom semantic predicates (`{...}?`) | ✅ | Evaluated during conflict resolution via a caller-supplied `:sempred` callback (`Seed.ParserInterpreter.parse/4`, or an overridable `sempred/3` in `Seed.Generated`); the default treats every predicate as satisfied. The interpreter still cannot run the host code itself — the caller supplies the decision.
