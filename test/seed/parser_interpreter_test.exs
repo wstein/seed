@@ -25,7 +25,12 @@ defmodule Seed.ParserInterpreterTest do
     %{name: "ctx_b", grammar: "Ctx", start_rule: 0},
     # A real grammar: lexer fragments, recursion, multi-alt decisions,
     # not-set, and number/string lexing.
-    %{name: "json", grammar: "JSON", start_rule: 0}
+    %{name: "json", grammar: "JSON", start_rule: 0},
+    # Modes stresses lexer modes (pushMode/popMode), a hidden channel, and a
+    # non-greedy rule; Calc stresses right-associative precedence and unary
+    # operators. Both are diffed against ANTLR's generated parser.
+    %{name: "modes", grammar: "Modes", start_rule: 0},
+    %{name: "calc", grammar: "Calc", start_rule: 0}
   ]
 
   for fixture <- @cases do

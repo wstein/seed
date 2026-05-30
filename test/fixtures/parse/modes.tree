@@ -1,0 +1,1 @@
+(prog (item hi ) (item (tag < a (attr foo = "1") (attr bar = "2") >)) (item  bye ) (item (tag < b >)) <EOF>)

@@ -42,11 +42,11 @@ workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
 mkdir -p "$fixtures"
-for grammar in Hello Expr Cover Ctx JSON Pred LexPred Hidden G4; do
+for grammar in Hello Expr Cover Ctx JSON Pred LexPred Hidden G4 ModesLexer Modes Calc; do
   cp "$grammars/$grammar.g4" "$workdir/"
 done
 
-( cd "$workdir" && java -jar "$ANTLR_JAR" -Dlanguage=Python3 Hello.g4 Expr.g4 Cover.g4 Ctx.g4 JSON.g4 Pred.g4 LexPred.g4 Hidden.g4 G4.g4 )
+( cd "$workdir" && java -jar "$ANTLR_JAR" -Dlanguage=Python3 Hello.g4 Expr.g4 Cover.g4 Ctx.g4 JSON.g4 Pred.g4 LexPred.g4 Hidden.g4 G4.g4 ModesLexer.g4 Modes.g4 Calc.g4 )
 
 for interp in "$workdir"/*.interp; do
   cp "$interp" "$fixtures/"

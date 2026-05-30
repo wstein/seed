@@ -1,0 +1,1 @@
+(prog (expr (expr (expr 2) ^ (expr (expr 3) ^ (expr 2))) + (expr (expr 4) * (expr - (expr 5)))) <EOF>)

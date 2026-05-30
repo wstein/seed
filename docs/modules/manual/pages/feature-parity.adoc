@@ -53,8 +53,8 @@ N/A by design.
 | Feature | Seed | Notes
 
 | ATN simulation, longest match, rule-order tie-break | ✅ | `Seed.LexerATNSimulator`, validated against the reference token streams.
-| Modes (`mode` / `pushMode` / `popMode`) | ✅ | Mode stack in `Seed.Lexer`.
-| Channels (tagging tokens) | ✅ | `channel(...)` sets the token channel.
+| Modes (`mode` / `pushMode` / `popMode`) | ✅ | Mode stack in `Seed.Lexer`; diffed against the reference's generated parser on the `Modes` grammar.
+| Channels (tagging tokens) | ✅ | `channel(...)` sets the token channel; the hidden channel is exercised by the `Modes` differential test.
 | Commands: `skip`, `more`, `type`, `channel`, `mode`, `pushMode`, `popMode` | ✅ | `Seed.ATN.LexerActionExecutor`.
 | Custom embedded actions (`{...}`) | ✗ | Needs host code; currently a no-op.
 | Lexer semantic predicates (`{...}?`) | ✅ | Evaluated during the rule's closure via a caller-supplied evaluator (`Seed.Lexer.new/3`, or `Seed.tokenize/3`'s `:sempred`); the default treats every predicate as satisfied. A custom evaluator bypasses the lexer DFA cache (its result may vary with position), as the reference cannot fold a predicate into a DFA edge.
@@ -78,7 +78,7 @@ N/A by design.
 | Feature | Seed | Notes
 
 | Adaptive LL(*) prediction | ✅ | `Seed.ParserATNSimulator`, full rule-invocation context (xref:architecture:09-architecture-decisions.adoc#adr-002[ADR-002]).
-| Left recursion / precedence climbing | ✅ | As a sub-rule and directly as the start rule.
+| Left recursion / precedence climbing | ✅ | As a sub-rule and directly as the start rule; left- *and* right-associative (`<assoc=right>`) operators diffed against the reference on the `Calc` grammar.
 | Precedence predicates | ✅ | The precedence filter evaluates them.
 | Custom semantic predicates (`{...}?`) | ✅ | Evaluated during conflict resolution via a caller-supplied `:sempred` callback (`Seed.ParserInterpreter.parse/4`, or an overridable `sempred/3` in `Seed.Generated`); the default treats every predicate as satisfied. The interpreter still cannot run the host code itself — the caller supplies the decision.
 | Embedded actions (`{...}`) | ✗ | No-op on the matched path. Plain actions need a typed-context/attribute model to be meaningful and are folded into the codegen target (Roadmap C); post-parse computation is already served by the tree walk.
