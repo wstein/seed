@@ -1,0 +1,1 @@
+(prog (tok αβγ) (tok "a\"b") (tok 42) (tok δ) <EOF>)

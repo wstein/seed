@@ -52,9 +52,9 @@ N/A by design.
 |===
 | Feature | Seed | Notes
 
-| ATN simulation, longest match, rule-order tie-break | ✅ | `Seed.LexerATNSimulator`, validated against the reference token streams.
+| ATN simulation, longest match, rule-order tie-break | ✅ | `Seed.LexerATNSimulator`, validated against the reference token streams. Unicode code points and string escapes are diffed against the reference on the `Misc` grammar.
 | Modes (`mode` / `pushMode` / `popMode`) | ✅ | Mode stack in `Seed.Lexer`; diffed against the reference's generated parser on the `Modes` grammar.
-| Channels (tagging tokens) | ✅ | `channel(...)` sets the token channel; the hidden channel is exercised by the `Modes` differential test.
+| Channels (tagging tokens) | ✅ | `channel(...)` sets the token channel; the hidden channel (`Modes`) and a custom named channel (`Misc`) are diffed against the reference, both correctly filtered from the parser.
 | Commands: `skip`, `more`, `type`, `channel`, `mode`, `pushMode`, `popMode` | ✅ | `Seed.ATN.LexerActionExecutor`.
 | Custom embedded actions (`{...}`) | ✗ | Needs host code; currently a no-op.
 | Lexer semantic predicates (`{...}?`) | ✅ | Evaluated during the rule's closure via a caller-supplied evaluator (`Seed.Lexer.new/3`, or `Seed.tokenize/3`'s `:sempred`); the default treats every predicate as satisfied. A custom evaluator bypasses the lexer DFA cache (its result may vary with position), as the reference cannot fold a predicate into a DFA edge.

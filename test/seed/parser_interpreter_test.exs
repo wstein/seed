@@ -30,7 +30,10 @@ defmodule Seed.ParserInterpreterTest do
     # non-greedy rule; Calc stresses right-associative precedence and unary
     # operators. Both are diffed against ANTLR's generated parser.
     %{name: "modes", grammar: "Modes", start_rule: 0},
-    %{name: "calc", grammar: "Calc", start_rule: 0}
+    %{name: "calc", grammar: "Calc", start_rule: 0},
+    # Misc stresses Unicode code points (Greek), string escapes, and a custom
+    # named channel that must be filtered from the parser.
+    %{name: "misc", grammar: "Misc", start_rule: 0}
   ]
 
   for fixture <- @cases do
