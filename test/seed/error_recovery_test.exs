@@ -32,18 +32,19 @@ defmodule Seed.ErrorRecoveryTest do
     end
   end
 
-  # Known divergence, rooted in the absence of an SLL prediction stage
-  # (roadmap D). At the `expr` star-loop-exit decision with lookahead `4`,
-  # ANTLR predicts in SLL (empty outer context), where exiting the loop reaches
-  # the rule end and is viable — so it exits cleanly, returning `(expr 3)`, and
-  # `stat` then deletes `4` as extraneous: `(stat x = (expr 3) 4 ;)`. Seed
-  # predicts in full context, where exiting `expr` overshoots into `stat`
-  # (which expects `;`); since `4` matches neither the loop operator nor `;`,
-  # prediction reports no-viable and panic-resync consumes `4` into the still-
-  # current `expr` frame. The recovery is sound, only located one rule deeper.
-  # On *valid* input full-context and SLL always agree, so this never affects a
-  # correct parse. If SLL lands, this should converge to ANTLR's tree.
-  test "expr_extra_tok: full-context prediction recovers one rule deeper than ANTLR" do
+  # Known divergence. `expr` is left-recursive, so its loop-exit is a
+  # *precedence* decision, which Seed predicts in full context directly (the
+  # precedence-filtered start state is not SLL-shareable) — SLL never applies
+  # here. At that decision with lookahead `4`, ANTLR (which does run SLL for
+  # precedence decisions) exits the loop cleanly, returning `(expr 3)`, and
+  # `stat` then deletes `4` as extraneous: `(stat x = (expr 3) 4 ;)`. Seed's
+  # full-context pass overshoots into `stat` (which expects `;`); since `4`
+  # matches neither the loop operator nor `;`, prediction reports no-viable and
+  # panic-resync consumes `4` into the still-current `expr` frame. The recovery
+  # is sound, only located one rule deeper. On *valid* input the two prediction
+  # modes always agree, so this never affects a correct parse. (Note: SLL has
+  # landed for non-precedence decisions, but does not change this case.)
+  test "expr_extra_tok: precedence-decision full-context recovers one rule deeper than ANTLR" do
     seed_tree = recovered_tree("Expr", "expr_extra_tok", 0)
     antlr_tree = String.trim_trailing(File.read!(Path.join(@recover_dir, "expr_extra_tok.tree")))
 

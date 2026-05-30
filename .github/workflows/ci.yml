@@ -78,6 +78,9 @@ jobs:
       - name: Regenerate tree-pattern fixtures
         run: scripts/gen_pattern_fixtures.sh
 
+      - name: Regenerate error-recovery fixtures
+        run: scripts/gen_recover_fixtures.sh
+
       - name: Fail on fixture drift
         run: |
           if ! git diff --quiet -- test/fixtures; then
