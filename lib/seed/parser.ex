@@ -410,8 +410,18 @@ defmodule Seed.Parser do
          [%ParserRuleContext{invoking_state: invoking} | rest],
          visited
        ) do
-    follow = hd(Map.fetch!(atn.states, invoking).transitions).follow_state
-    expects_ctx(atn, follow, symbol, rest, [], %{}, visited)
+    expects_ctx(atn, invoking_follow_state(atn, invoking), symbol, rest, [], %{}, visited)
+  end
+
+  # The follow state recorded on the rule transition that invoked a frame. An
+  # `invoking_state` always names a rule-call site, so its transition 0 is the
+  # rule transition; match it explicitly so a malformed ATN fails loudly rather
+  # than via a cryptic `nil` follow state.
+  defp invoking_follow_state(atn, invoking_state) do
+    %State{transitions: [%Transition{type: :rule, follow_state: follow} | _]} =
+      Map.fetch!(atn.states, invoking_state)
+
+    follow
   end
 
   defp token_mismatch(parser, token, token_type) do
@@ -470,8 +480,7 @@ defmodule Seed.Parser do
   defp recovers_at?(_atn, %ParserRuleContext{invoking_state: -1}, _symbol), do: false
 
   defp recovers_at?(atn, %ParserRuleContext{invoking_state: invoking}, symbol) do
-    follow = hd(Map.fetch!(atn.states, invoking).transitions).follow_state
-    expects?(atn, follow, symbol)
+    expects?(atn, invoking_follow_state(atn, invoking), symbol)
   end
 
   defp describe(%Token{type: @eof}), do: "<EOF>"

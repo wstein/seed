@@ -79,7 +79,12 @@ defmodule Seed.ATN.BypassAlts do
         end_state: bypass_stop_no
       }
 
-    bypass_start = Enum.reduce(moved, bypass_start, &State.add_transition(&2, &1))
+    # The reference moves them by repeatedly removing the *last* transition, so
+    # they land on `bypassStart` reversed; match that for faithfulness. (A rule
+    # start has a single transition in practice, so the order is moot, but
+    # mirroring the reference avoids a latent divergence on any multi-transition
+    # start state.)
+    bypass_start = Enum.reduce(Enum.reverse(moved), bypass_start, &State.add_transition(&2, &1))
 
     # 3. The bypass arm: match the imaginary token, then rejoin the rule's flow.
     match_state =
