@@ -159,6 +159,9 @@ shippable behind the project's quality gate (`make verify`).
   Performance codegen follows the specialization ladder in
   xref:architecture:09-architecture-decisions.adoc#adr-008[ADR-008] — flatten
   the interpreter first, then emit inspectable Elixir AST, benchmark-gated.
+  Per xref:architecture:09-architecture-decisions.adoc#adr-009[ADR-009] the
+  generator lives in a separate `seed_codegen` app; the `seed` runtime stays
+  zero-dependency and generated parsers depend only on it.
 | Typed contexts and an ergonomic, ANTLR-target-like generated API.
 
 | D. SLL-first prediction
@@ -184,4 +187,6 @@ xref:architecture:09-architecture-decisions.adoc#adr-007[ADR-007]) is its own
 track: it removes the external Java/antlr-ng build dependency but does not
 change what a grammar can do at run time. The two tracks are independent —
 the runtime gaps above are about *capability*, the tool is about
-*self-hosting*.
+*self-hosting*. Both the tool and the performance generator land in a
+separate `seed_codegen` app, keeping the `seed` runtime zero-dependency
+(xref:architecture:09-architecture-decisions.adoc#adr-009[ADR-009]).

@@ -282,3 +282,51 @@ stay byte-identical (the oracle suite passed unchanged). Measured gain on the
 pure-Elixir interpreter yields single digits because the cost is broadly
 distributed, so an order-of-magnitude improvement requires rung 2 (codegen) —
 exactly the gate this ADR sets.
+
+[#adr-009]
+=== ADR-009: The runtime/tool split is the code-generation boundary
+
+*Status:* Accepted
+
+*Context:* Two code-generation efforts are planned — the self-hosting `.g4`
+front end and ATN construction (<<adr-007>>) and the performance specializer
+(<<adr-008>> rung 2) — and both are tempting to grow inside the existing
+`seed` app. The reference projects converged on *not* doing that: ANTLR5
+splits a language-agnostic Kotlin *Core* from the per-language *runtimes*, and
+antlr-ng splits the `antlr-ng` *tool* from the `antlr4ng` *runtime*. The
+runtime is what every parser ships in production; a tool entangled into it
+drags in file I/O, argument parsing, grammar compilation, and (today) the
+external ANTLR jar — none of which a running parser needs. `seed` currently
+has **zero runtime dependencies** (only dev/test tooling), and that is worth
+protecting.
+
+*Decision:* The `seed` runtime is the dependency floor and the only thing a
+generated parser may depend on.
+
+* `seed` (runtime) keeps **zero runtime dependencies** and contains exactly
+  what parsing needs at run time: the ATN and its deserializer, the lexer and
+  parser simulators, the parse tree and its tooling (`Seed.Trees`,
+  `Seed.XPath`, the walker/visitor, `Seed.TokenStreamRewriter`), error
+  recovery and diagnostics, and `.interp` loading (`Seed.Interp`).
+* All grammar-to-parser *generation* lives in a separate app, `seed_codegen`,
+  which depends on `seed`: the `.g4` front end and ATN construction
+  (<<adr-007>> Phases 1–5), the rung-2 performance specializer (<<adr-008>>),
+  and a CLI / Mix tasks. `seed_codegen` is a *build-time* tool and is never a
+  runtime dependency of a generated parser.
+* Generated parsers depend only on `seed`, exactly as ANTLR's generated code
+  depends on the runtime, not the tool.
+
+Until `seed_codegen` exists, this is a guardrail: do not add a CLI, grammar
+compilation, or any runtime dependency to `seed`. `Seed.Generated` — the thin
+compile-time macro that bakes a `.interp` and emits *runtime-only* entry
+points — may stay in `seed` while it remains dependency-free and trivial; the
+substantive rung-2 generator and the `.g4` compiler go in `seed_codegen`.
+
+*Consequences:* `seed` stays small and safe to ship — no tool surface, no jar,
+no CLI in production. There will be two Hex packages: `seed` (depended on by
+every generated parser) and `seed_codegen` (build-time only), mirroring the
+ANTLR runtime/tool split. When `seed_codegen` lands the repository becomes a
+Mix umbrella (or two packages) and `seed` must never path-depend on
+`seed_codegen`. This extends <<adr-001>> (we port the runtime, and *if* we
+build a tool it is a separate app) and fixes the home of the <<adr-007>> and
+<<adr-008>> work before it can entangle the runtime.
