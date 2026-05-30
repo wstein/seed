@@ -29,6 +29,16 @@ defmodule Seed.ATN.PredictionMode do
   That is when every configuration is in a rule-stop state (all paths
   ended) or two configurations share an ATN state and context but predict
   different alternatives (a conflict that more lookahead cannot break).
+
+  This deliberately omits the reference's `hasStateAssociatedWithOneAlt`
+  guard, which keeps SLL scanning (rather than terminating the conflict)
+  while some state still carries a single alternative. That guard pays off in
+  the reference because re-scanning rides a *persisted* DFA; Seed has no DFA
+  edge structure, so "keep scanning" re-walks the closure each token and, on a
+  deep ambiguous expression, blows up (a measured ~50× regression on the
+  SQLite benchmark). Terminating at the first conflict — for SLL, falling over
+  to full context immediately — is strictly cheaper here, and the result is
+  identical (LL resolves it). See `Seed.ParserATNSimulator`.
   """
   @spec conflict?(ParserATNConfigSet.t(), Seed.ATN.t()) :: boolean()
   def conflict?(config_set, atn) do

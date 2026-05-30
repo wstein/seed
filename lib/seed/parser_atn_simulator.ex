@@ -217,7 +217,9 @@ defmodule Seed.ParserATNSimulator do
   # each time a rule-stop config is carried forward, which would otherwise make
   # the key miss on every step of a multi-token decision.
   defp cached_reach_set(atn, configs, t, parser, full_ctx?) do
-    key_configs = Enum.map(ParserATNConfigSet.configs(configs), &%{&1 | reaches_into_outer_context: 0})
+    key_configs =
+      Enum.map(ParserATNConfigSet.configs(configs), &%{&1 | reaches_into_outer_context: 0})
+
     key = {atn.cache_key, :parser_edge, key_configs, t, full_ctx?}
     DFACache.memoize(key, fn -> compute_reach_set(atn, configs, t, parser, full_ctx?) end)
   end
@@ -236,6 +238,12 @@ defmodule Seed.ParserATNSimulator do
   # An SLL conflict may be a false ambiguity that the real outer context
   # resolves, so retry in full context; a full-context conflict is genuine
   # (resolved by predicate or the lowest alternative).
+  #
+  # The reference can short-circuit the SLL→LL retry when the conflicting
+  # configurations carry predicates that already resolve to one alternative;
+  # Seed always retries in full context, where the same predicates are
+  # evaluated, so the result is identical and only a (rare) conflict pays the
+  # extra LL pass.
   defp on_conflict(_reach_configs, _parser, false), do: throw(:sll_conflict)
   defp on_conflict(reach_configs, parser, true), do: resolve_conflict(reach_configs, parser)
 
@@ -244,6 +252,17 @@ defmodule Seed.ParserATNSimulator do
   # otherwise it is a pure syntactic ambiguity, resolved (as ANTLR does) to
   # the lowest alternative. If every predicate fails, fall back to the lowest
   # alternative rather than manufacturing a no-viable error.
+  #
+  # In full context the reference keeps scanning past a conflict until the
+  # conflicting alternative subsets reduce to a single viable alternative
+  # (`resolvesToJustOneViableAlt`), only then resolving. Seed resolves at the
+  # first conflict to the lowest alternative. For a grammar whose conflict
+  # subsets disagree on their minimum (e.g. `{{1,3},{2,4}}`) the reference
+  # could keep scanning and settle on a different alternative; no tested
+  # grammar (including the real SQLite/Erlang/Elixir grammars) exhibits this,
+  # and matching the reference would reintroduce the unbounded-rescan blow-up
+  # that Seed's lack of a persisted DFA makes costly (see
+  # `Seed.ATN.PredictionMode.conflict?/2`). This is a deliberate divergence.
   defp resolve_conflict(reach_configs, parser) do
     case predicated_alts(reach_configs) do
       [] -> PredictionMode.min_alt(reach_configs)
