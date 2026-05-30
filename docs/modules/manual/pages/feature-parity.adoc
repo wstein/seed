@@ -98,7 +98,7 @@ N/A by design.
 | Visitor | ✅ | `Seed.ParseTreeVisitor`.
 | Typed per-rule contexts, labeled alternatives, typed accessors | ✗ | Contexts are generic, keyed by `rule_index` (see Roadmap C).
 | XPath over trees | ✅ | `Seed.XPath.find/3` — `/`, `//`, rule/token/literal names, `*`, and `!` inversion, resolved against the grammar.
-| Tree pattern matching | ✗ | Not implemented (see Roadmap E).
+| Tree pattern matching | ✅ | `Seed.TreePatternMatcher` — compile a pattern (`<ID> = <expr>;`) with the grammar's bypass-alternatives ATN (`Seed.ATN.BypassAlts`) and match it against a tree, binding tags/labels (`Seed.ParseTreeMatch`). Diffed byte-for-byte against the reference's `ParseTreePatternMatcher` (rule/token/labeled tags, `find_all`, left- and right-recursive grammars).
 |===
 
 === Errors and recovery
@@ -173,9 +173,11 @@ shippable behind the project's quality gate (`make verify`).
 | The main remaining prediction-time performance lever (correctness is already
   validated under full context).
 
-| E. Tooling parity
-| `TokenStreamRewriter`, tree XPath, tree pattern matching, and a bail error
-  strategy (`Seed.ParserInterpreter.parse/4`'s `:bail` — done).
+| E. Tooling parity _(done)_
+| `TokenStreamRewriter`, tree XPath, a bail error strategy
+  (`Seed.ParserInterpreter.parse/4`'s `:bail`), and tree pattern matching
+  (`Seed.TreePatternMatcher`, on the bypass-alternatives ATN — diffed against
+  the reference's `ParseTreePatternMatcher`).
 | Convenience APIs that round out runtime parity.
 |===
 

@@ -108,6 +108,10 @@ xref:04-solution-strategy.adoc[Solution Strategy].
   rule/token/literal names, `*`, `!`), resolved against the grammar.
 * `Seed.TokenStreamRewriter` — immutable insert/replace/delete edits over
   token positions, rendered back to text with `text/1`.
+* `Seed.TreePatternMatcher` — compiles a tree pattern (`<ID> = <expr>;`) and
+  matches it against a parse tree, binding tags to nodes (`Seed.TreePattern`,
+  `Seed.ParseTreeMatch`). Rule tags are made matchable by `Seed.ATN.BypassAlts`,
+  which adds the reference's bypass-alternatives to a parser ATN.
 
 === Planned
 
