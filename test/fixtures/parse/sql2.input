@@ -1,0 +1,1 @@
+WITH cte AS (SELECT id FROM t) INSERT INTO u (a, b) SELECT CASE WHEN x > 0 THEN 'p' ELSE 'n' END, (SELECT max(y) FROM v) FROM cte UNION SELECT 1, 2;
