@@ -1,5 +1,14 @@
 # Persisted DFA — Design
 
+> **Outcome: landed (all four stages).** The prediction loop walks the DFA in
+> `Seed.ParserATNSimulator`, backed by `Seed.DFA`. Byte-for-byte correct (ctx_b
+> + all vendored grammars + oracle + recovery + tree-pattern, 210 tests).
+> Benchmark: `parse_throughput` parse 568 → 287 ms, `sql_big` 546 → 308 ms
+> (~1.8×), ~4× faster than the pre-SLL interpreter end to end. Stage 4
+> (re-test the `hasStateAssociatedWithOneAlt` scan guard now that rescans are
+> cheap) was **negative** — it still regresses (308 → 499 ms), so the
+> documented divergence stands. This note is kept as the design record.
+
 The next prediction-performance lever (chosen after SLL landed). Today
 `Seed.DFACache` memoizes reach config-sets keyed by the *config-set itself*,
 and `resolve` recomputes `unique_alt`/`conflict?` on every visit. Profiling a
