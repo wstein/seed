@@ -31,13 +31,15 @@ defmodule Seed.ATN.PredictionMode do
 
   This deliberately omits the reference's `hasStateAssociatedWithOneAlt`
   guard, which keeps SLL scanning (rather than terminating the conflict)
-  while some state still carries a single alternative. That guard pays off in
-  the reference because re-scanning rides a *persisted* DFA; Seed has no DFA
-  edge structure, so "keep scanning" re-walks the closure each token and, on a
-  deep ambiguous expression, blows up (a measured ~50× regression on the
-  SQLite benchmark). Terminating at the first conflict — for SLL, falling over
-  to full context immediately — is strictly cheaper here, and the result is
-  identical (LL resolves it). See `Seed.ParserATNSimulator`.
+  while some state still carries a single alternative. Before Seed had a
+  persisted DFA, that guard caused a ~50× blow-up (each rescanned token
+  re-walked the closure). Seed now *has* a persisted DFA (`Seed.DFA`), so the
+  guard was re-tested — and it still regresses (~1.6× on the SQLite
+  benchmark): the extra cold SLL scanning it induces costs more than the LL
+  fall-overs it avoids, even with the rescanned edges cached. Terminating at
+  the first conflict — for SLL, falling over to full context immediately — is
+  cheaper here, and the result is identical (LL resolves it). See
+  `Seed.ParserATNSimulator`.
   """
   @spec conflict?([ATNConfig.t()], Seed.ATN.t()) :: boolean()
   def conflict?(configs, atn) when is_list(configs) do
