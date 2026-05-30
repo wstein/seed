@@ -210,9 +210,15 @@ defmodule Seed.ParserATNSimulator do
   end
 
   # Memoizes each edge: the reach for a configuration set on a token type
-  # depends only on the grammar, the set, the token, and the SLL/LL mode.
+  # depends only on the grammar, the set, the token, and the SLL/LL mode. The
+  # `reaches_into_outer_context` counter is normalized out of the key — it does
+  # not change which states/alts are reachable (only the boolean dip flag,
+  # which the recomputed reach derives for itself), and in SLL it increments
+  # each time a rule-stop config is carried forward, which would otherwise make
+  # the key miss on every step of a multi-token decision.
   defp cached_reach_set(atn, configs, t, parser, full_ctx?) do
-    key = {atn.cache_key, :parser_edge, ParserATNConfigSet.configs(configs), t, full_ctx?}
+    key_configs = Enum.map(ParserATNConfigSet.configs(configs), &%{&1 | reaches_into_outer_context: 0})
+    key = {atn.cache_key, :parser_edge, key_configs, t, full_ctx?}
     DFACache.memoize(key, fn -> compute_reach_set(atn, configs, t, parser, full_ctx?) end)
   end
 
