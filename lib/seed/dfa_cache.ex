@@ -41,6 +41,20 @@ defmodule Seed.DFACache do
     end
   end
 
+  @doc """
+  Returns the live ETS table name, or `nil` when the cache is not running.
+
+  `Seed.DFA` stores its interned states and edges in this table directly, so
+  it shares the cache's ownership and wholesale-clear-on-overflow guard.
+  """
+  @spec table() :: atom() | nil
+  def table do
+    case :ets.whereis(@table) do
+      :undefined -> nil
+      _ref -> @table
+    end
+  end
+
   @doc "Removes all cached entries."
   @spec clear() :: :ok
   def clear do
