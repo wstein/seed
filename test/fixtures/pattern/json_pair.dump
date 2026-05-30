@@ -1,0 +1,3 @@
+PATTERN (pair <STRING> : (value <value>))
+(pair "a" : (value 1)) :: STRING=["a"] value=[(value 1)]
+(pair "b" : (value (arr [ (value 2) , (value 3) ]))) :: STRING=["b"] value=[(value (arr [ (value 2) , (value 3) ]))]

@@ -28,6 +28,17 @@ defmodule Seed.Token do
 
   @type type :: integer()
 
+  @typedoc """
+  A tree-pattern tag marker, or `nil` for an ordinary token.
+
+  Set only by `Seed.TreePatternMatcher` when tokenizing a pattern: a
+  `{:token, name, label}` for a token tag (`<ID>`, `<x:ID>`) or a
+  `{:rule, name, label}` for a rule tag (`<expr>`, `<e:expr>`). It lets a
+  tag token travel through the parser as a plain token (matched by `type`)
+  while the matcher can still recover that it is a placeholder.
+  """
+  @type tag :: nil | {:token | :rule, String.t(), String.t() | nil}
+
   @type t :: %__MODULE__{
           type: type(),
           text: String.t() | nil,
@@ -36,7 +47,8 @@ defmodule Seed.Token do
           channel: non_neg_integer(),
           start: integer(),
           stop: integer(),
-          index: integer()
+          index: integer(),
+          tag: tag()
         }
 
   @enforce_keys [:type]
@@ -47,7 +59,8 @@ defmodule Seed.Token do
             channel: @default_channel,
             start: -1,
             stop: -1,
-            index: -1
+            index: -1,
+            tag: nil
 
   @doc "The token type representing end of input."
   @spec eof() :: type()
@@ -80,7 +93,7 @@ defmodule Seed.Token do
   `:channel`, `:start`, `:stop`, and `:index`.
 
       iex> Seed.Token.new(4, text: "if", line: 1, column: 0)
-      %Seed.Token{type: 4, text: "if", line: 1, column: 0, channel: 0, start: -1, stop: -1, index: -1}
+      %Seed.Token{type: 4, text: "if", line: 1, column: 0, channel: 0, start: -1, stop: -1, index: -1, tag: nil}
   """
   @spec new(type(), keyword()) :: t()
   def new(type, opts \\ []) when is_integer(type) and is_list(opts) do
@@ -94,7 +107,7 @@ defmodule Seed.Token do
   reference runtime emits EOF at the final input offset.
 
       iex> Seed.Token.eof_token(7)
-      %Seed.Token{type: -1, text: nil, line: 0, column: -1, channel: 0, start: 7, stop: 7, index: -1}
+      %Seed.Token{type: -1, text: nil, line: 0, column: -1, channel: 0, start: 7, stop: 7, index: -1, tag: nil}
   """
   @spec eof_token(integer()) :: t()
   def eof_token(start \\ -1) when is_integer(start) do

@@ -1,0 +1,2 @@
+PATTERN (expr (expr <expr>) + (expr <expr>))
+(expr (expr 3) + (expr (expr 4) * (expr 5))) :: expr=[(expr 3)|(expr (expr 4) * (expr 5))]

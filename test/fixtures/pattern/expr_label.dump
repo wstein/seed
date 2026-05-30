@@ -1,0 +1,3 @@
+PATTERN (stat <lhs:ID> = (expr <rhs:expr>) ;)
+(stat a = (expr 1) ;) :: ID=[a] expr=[(expr 1)] lhs=[a] rhs=[(expr 1)]
+(stat b = (expr (expr c) + (expr d)) ;) :: ID=[b] expr=[(expr (expr c) + (expr d))] lhs=[b] rhs=[(expr (expr c) + (expr d))]

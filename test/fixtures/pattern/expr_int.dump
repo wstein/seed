@@ -1,0 +1,3 @@
+PATTERN (stat <ID> = (expr <INT>) ;)
+(stat a = (expr 5) ;) :: ID=[a] INT=[5]
+(stat b = (expr 7) ;) :: ID=[b] INT=[7]
