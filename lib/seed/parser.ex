@@ -317,14 +317,21 @@ defmodule Seed.Parser do
   end
 
   # Like `expects?/3`, but at a rule-stop it follows the return into the caller
-  # (using the active frame stack) instead of giving up — the faithful analogue
-  # of ANTLR's `ATN.nextTokens(state, context)`. `frames` is the rule stack
-  # whose head is the rule the walk is currently inside.
+  # instead of giving up — the faithful analogue of ANTLR's
+  # `ATN.nextTokens(state, context)` / `LL1Analyzer`. The walk threads its own
+  # return stack: a rule call (a `:rule` edge) pushes the caller's follow state
+  # onto `pending`, and the matching rule stop pops it — so a callee returns to
+  # the *right* follow state, not whatever happens to be on the runtime frame
+  # stack. Only when `pending` is empty (the walk fell off the rule it started
+  # in) does it consult the real `frames`. `called` bounds recursion (a rule on
+  # the analysis stack is not re-entered); `visited` keys on `{state, frames
+  # depth, pending}`, which also distinguishes a callee reached via different
+  # call sites.
   defp expects_in_context?(atn, state_number, symbol, frames),
-    do: expects_in_context?(atn, state_number, symbol, frames, %{})
+    do: expects_ctx(atn, state_number, symbol, frames, [], MapSet.new(), %{})
 
-  defp expects_in_context?(atn, state_number, symbol, frames, visited) do
-    key = {state_number, length(frames)}
+  defp expects_ctx(atn, state_number, symbol, frames, pending, called, visited) do
+    key = {state_number, length(frames), pending}
 
     if Map.has_key?(visited, key) do
       false
@@ -333,26 +340,60 @@ defmodule Seed.Parser do
 
       case Map.fetch!(atn.states, state_number) do
         %State{state_type: :rule_stop} ->
-          follow_return_expects?(atn, symbol, frames, visited)
+          return_expects?(atn, symbol, frames, pending, called, visited)
 
         %State{transitions: transitions} ->
           Enum.any?(
             transitions,
-            &transition_expects_in_context?(atn, &1, symbol, frames, visited)
+            &transition_expects_ctx(atn, &1, symbol, frames, pending, called, visited)
           )
       end
     end
   end
 
-  defp transition_expects_in_context?(atn, transition, symbol, frames, visited) do
+  # A rule call: push the caller's follow state and descend, unless the callee
+  # is already on the analysis stack (recursion guard).
+  defp transition_expects_ctx(
+         atn,
+         %Transition{type: :rule} = t,
+         symbol,
+         frames,
+         pending,
+         called,
+         visited
+       ) do
+    if MapSet.member?(called, t.rule_index) do
+      false
+    else
+      expects_ctx(
+        atn,
+        t.target,
+        symbol,
+        frames,
+        [t.follow_state | pending],
+        MapSet.put(called, t.rule_index),
+        visited
+      )
+    end
+  end
+
+  defp transition_expects_ctx(atn, transition, symbol, frames, pending, called, visited) do
     if Transition.epsilon?(transition) do
-      expects_in_context?(atn, transition.target, symbol, frames, visited)
+      expects_ctx(atn, transition.target, symbol, frames, pending, called, visited)
     else
       Transition.matches?(transition, symbol)
     end
   end
 
-  # Pop the current rule and continue the walk from the caller's follow state.
+  # At a rule stop: return to the analysis-pushed follow state if there is one;
+  # otherwise the walk left the starting rule, so continue from the real
+  # caller's follow state (the runtime frame stack).
+  defp return_expects?(atn, symbol, frames, [follow | rest], called, visited),
+    do: expects_ctx(atn, follow, symbol, frames, rest, called, visited)
+
+  defp return_expects?(atn, symbol, frames, [], _called, visited),
+    do: follow_return_expects?(atn, symbol, frames, visited)
+
   defp follow_return_expects?(_atn, _symbol, [], _visited), do: false
 
   defp follow_return_expects?(
@@ -370,7 +411,7 @@ defmodule Seed.Parser do
          visited
        ) do
     follow = hd(Map.fetch!(atn.states, invoking).transitions).follow_state
-    expects_in_context?(atn, follow, symbol, rest, visited)
+    expects_ctx(atn, follow, symbol, rest, [], MapSet.new(), visited)
   end
 
   defp token_mismatch(parser, token, token_type) do
