@@ -1,8 +1,9 @@
-defmodule Seed.SQLiteConformanceTest do
+defmodule Seed.VendoredConformanceTest do
   @moduledoc """
-  A large, real-world grammar (vendored SQLite, ~1180 lines) parsed
-  byte-identically to the ANTLR reference — a scale and breadth check beyond
-  the small authored fixtures. See `test/fixtures/atn/grammars/VENDORED.md`.
+  Vendored split-grammar conformance: real-world grammars (SQLite, Elixir)
+  whose parser is named `<G>Parser` rather than `<G>`, parsed byte-identically
+  to the ANTLR reference. A scale and breadth check beyond the small authored
+  fixtures. See `test/fixtures/atn/grammars/VENDORED.md`.
   """
   use ExUnit.Case, async: true
 
@@ -36,5 +37,17 @@ defmodule Seed.SQLiteConformanceTest do
 
       assert Trees.to_string_tree(tree, parser) == expected
     end
+  end
+
+  test "parses Elixir source identically to the reference" do
+    parser = Interp.load!(Path.join(@interp_dir, "ElixirParser.interp"))
+    lexer = Interp.load!(Path.join(@interp_dir, "ElixirLexer.interp"))
+
+    input = @parse_dir |> Path.join("elixir.input") |> File.read!() |> CharStream.new()
+    {:ok, tokens} = lexer.atn |> Lexer.new(input) |> TokenStream.from_lexer()
+    assert {:ok, tree} = ParserInterpreter.parse(parser, tokens, 0)
+
+    expected = @parse_dir |> Path.join("elixir.tree") |> File.read!() |> String.trim()
+    assert Trees.to_string_tree(tree, parser) == expected
   end
 end

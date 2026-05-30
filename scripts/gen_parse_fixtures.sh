@@ -39,19 +39,19 @@ fi
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 
-for grammar in Hello Expr Ctx JSON ModesLexer Modes Calc MiscLexer Misc MoreLexer More SQLiteLexer SQLiteParser; do
+for grammar in Hello Expr Ctx JSON ModesLexer Modes Calc MiscLexer Misc MoreLexer More SQLiteLexer SQLiteParser Erlang ElixirLexer ElixirParser; do
   cp "$grammars/$grammar.g4" "$workdir/"
 done
 cp scripts/ParseDump.java "$workdir/"
 
-( cd "$workdir" && java -jar "$ANTLR_JAR" -Dlanguage=Java Hello.g4 Expr.g4 Ctx.g4 JSON.g4 ModesLexer.g4 Modes.g4 Calc.g4 MiscLexer.g4 Misc.g4 MoreLexer.g4 More.g4 SQLiteLexer.g4 SQLiteParser.g4 )
+( cd "$workdir" && java -jar "$ANTLR_JAR" -Dlanguage=Java Hello.g4 Expr.g4 Ctx.g4 JSON.g4 ModesLexer.g4 Modes.g4 Calc.g4 MiscLexer.g4 Misc.g4 MoreLexer.g4 More.g4 SQLiteLexer.g4 SQLiteParser.g4 Erlang.g4 ElixirLexer.g4 ElixirParser.g4 )
 echo "Compiling parsers and dumper"
 ( cd "$workdir" && javac -classpath "$ANTLR_JAR" ./*.java )
 
 # Each entry maps a fixture base name to its grammar prefix and start rule
 # as "name:Grammar:startRule" (bash 3.2 portable). The Ctx grammar is
 # context-sensitive, so it has one fixture per call context.
-for entry in "hello:Hello:greeting" "expr:Expr:prog" "ctx_a:Ctx:s" "ctx_b:Ctx:s" "json:JSON:json" "modes:Modes:prog" "calc:Calc:prog" "misc:Misc:prog" "more:More:prog" "sql:SQLite:parse" "sql2:SQLite:parse"; do
+for entry in "hello:Hello:greeting" "expr:Expr:prog" "ctx_a:Ctx:s" "ctx_b:Ctx:s" "json:JSON:json" "modes:Modes:prog" "calc:Calc:prog" "misc:Misc:prog" "more:More:prog" "sql:SQLite:parse" "sql2:SQLite:parse" "erl:Erlang:forms" "elixir:Elixir:parse"; do
   name="${entry%%:*}"
   rest="${entry#*:}"
   grammar="${rest%%:*}"

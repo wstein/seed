@@ -320,7 +320,11 @@ Until `seed_codegen` exists, this is a guardrail: do not add a CLI, grammar
 compilation, or any runtime dependency to `seed`. `Seed.Generated` — the thin
 compile-time macro that bakes a `.interp` and emits *runtime-only* entry
 points — may stay in `seed` while it remains dependency-free and trivial; the
-substantive rung-2 generator and the `.g4` compiler go in `seed_codegen`.
+substantive rung-2 generator and the `.g4` compiler go in `seed_codegen`. The
+guardrail is about *product* surface and runtime dependencies: a development
+or conformance **Mix task** (e.g. `mix seed.dogfood.elixir`, which parses
+Elixir source with a vendored grammar to exercise the runtime) is fine — it is
+dev-only, adds no runtime dependency, and ships nothing to a host application.
 
 *Consequences:* `seed` stays small and safe to ship — no tool surface, no jar,
 no CLI in production. There will be two Hex packages: `seed` (depended on by

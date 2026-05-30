@@ -36,7 +36,10 @@ defmodule Seed.ParserInterpreterTest do
     %{name: "misc", grammar: "Misc", start_rule: 0},
     # More stresses a token built across lexer rules with `more` and finalized
     # with `type()`.
-    %{name: "more", grammar: "More", start_rule: 0}
+    %{name: "more", grammar: "More", start_rule: 0},
+    # Erlang: a real-world 698-line grammar with a deep precedence cascade,
+    # diffed against the reference's generated parser.
+    %{name: "erl", grammar: "Erlang", start_rule: 0}
   ]
 
   for fixture <- @cases do
